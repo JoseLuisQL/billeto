@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { PrismaClient } from "@prisma/client";
+import { aplicarReglas } from "@/lib/actions/rules";
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -96,8 +97,14 @@ export async function crearTransaccion(formData: FormData) {
         const { workspace, userId } = await obtenerWorkspace();
 
         const accountId = formData.get("accountId") as string;
-        const categoryId = (formData.get("categoryId") as string) || null;
+        let categoryId = (formData.get("categoryId") as string) || null;
         const description = formData.get("description") as string;
+
+        // Auto-categorización: si no se especificó categoría, aplicar reglas
+        if (!categoryId && description) {
+            const catAutoId = await aplicarReglas(description);
+            if (catAutoId) categoryId = catAutoId;
+        }
         const type = (formData.get("type") as string) || "expense";
         const amount = parseFloat(formData.get("amount") as string);
         const dateStr = formData.get("date") as string;

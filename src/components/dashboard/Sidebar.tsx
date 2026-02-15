@@ -13,6 +13,8 @@ import {
     LogOut,
     CreditCard,
     Bot,
+    Zap,
+    RefreshCw,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -36,6 +38,8 @@ const menuItems = [
     { href: "/dashboard/transactions", label: "Transacciones", icon: Receipt },
     { href: "/dashboard/accounts", label: "Cuentas", icon: Wallet },
     { href: "/dashboard/categories", label: "Categorías", icon: Tags },
+    { href: "/dashboard/rules", label: "Reglas", icon: Zap },
+    { href: "/dashboard/recurring", label: "Recurrentes", icon: RefreshCw },
     { href: "/dashboard/budgets", label: "Presupuestos", icon: PieChart },
     { href: "/dashboard/goals", label: "Metas", icon: Target },
     { href: "/dashboard/billing", label: "Facturación", icon: CreditCard },
@@ -69,8 +73,8 @@ export function DashboardSidebar({ user }: SidebarProps) {
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive
-                                    ? "bg-lime-400/10 text-lime-400 font-medium"
-                                    : "text-muted-foreground hover:text-white hover:bg-white/5"
+                                ? "bg-lime-400/10 text-lime-400 font-medium"
+                                : "text-muted-foreground hover:text-white hover:bg-white/5"
                                 }`}
                         >
                             <Icon className="w-4 h-4" />
@@ -91,8 +95,8 @@ export function DashboardSidebar({ user }: SidebarProps) {
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive
-                                    ? "bg-lime-400/10 text-lime-400 font-medium"
-                                    : "text-muted-foreground hover:text-white hover:bg-white/5"
+                                ? "bg-lime-400/10 text-lime-400 font-medium"
+                                : "text-muted-foreground hover:text-white hover:bg-white/5"
                                 }`}
                         >
                             <Icon className="w-4 h-4" />
