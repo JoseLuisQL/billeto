@@ -101,7 +101,14 @@ La experiencia debe permitir:
 7. **Auth**: login/registro por email+password o social (Google/Apple) → acceso a app privada cliente.
 
 ### 5.2 App privada (rol Cliente)
-1. **Onboarding cliente guiado en chat web**: login → asistente hace diagnóstico rápido (control financiero, fricciones, objetivo, contexto personal) → muestra cards de valor personalizadas (categorías, presupuesto, metas) → elegir moneda base → crear 1 cuenta → registrar 1 gasto.
+1. **Onboarding Conversacional (Inspiración Gasti)**:Login → Chat Bot inicia automáticamente:
+   - **Saludo**: "¡Hola! Soy Billeto, tu asistente financiero 👋".
+   - **Paso 1 (Nombre)**: "¿Cómo querés que te llamemos?" (Input texto simple, ej. "Alex").
+   - **Paso 2 (Localización)**: Confirmación de País y Moneda Principal (Card con dropdowns, pre-seleccionado por IP).
+   - **Paso 3 (Avatar)**: "¿Te gustaría elegir un avatar?" (Grid de emojis seleccionables: Gato, Perro, Oso, Zorro...).
+   - **Paso 4 (Vinculación WhatsApp)**: Muestra Card con código único (ej. "G97VJH") + Botón "Configurar WhatsApp" (deep link) + Botón secundario "Continuar" (copy code).
+   - **Paso 5 (Diagnóstico)**: "¿Cuál es tu mayor dolor de cabeza con la plata?" (Chips seleccionables: "No sé a dónde va", "No logro ahorrar", "Deudas", "Todo lo anterior").
+   - **Resultado**: Perfil creado, moneda base seteada, WhatsApp (opcionalmente) vinculado y dashboard personalizado.
 2. **Registro por WhatsApp**:
    - Texto: “Gasté 30 en almuerzo”
    - Audio: “Gasté 50 en taxi”
@@ -137,46 +144,79 @@ La experiencia debe permitir:
 - Login
 - Registro
 
-**Lineamiento visual obligatorio**
-- Estilo **dark-neon** coherente con las capturas de referencia.
-- Consistencia obligatoria en paleta, contraste, tipografía, bordes, sombras y CTAs.
+**Lineamiento visual obligatorio (Inspiración Gasti.pro)**
+- **Tema**: Fondo Principal Profundo `Zinc-950` (#09090b). Tarjetas y Sidebar en `Zinc-900` (#18181b).
+- **Acento**: **Verde Neón/Lima** (`#D1F366` / `lime-300`) para CTAs principales, iconos activos, métricas destacadas y estados positivos.
+- **Colores Secundarios**: Azul suave para acciones informativas, Rojo/Rosa desaturado para gastos/alertas. Texto secundario en `Muted-Foreground` (#a1a1aa).
+- **Efectos**: **Glassmorphism** sutil en modales y overlays. Bordes finos `border-white/5` o `border-white/10`. Sombras suaves `shadow-xl` en elementos flotantes.
+- **Tipografía**: **Geist Sans** o **Inter**. Pesos: `Medium` (500) para encabezados y botones; `Regular` (400) para cuerpo. Tamaños de fuente ajustados (12-14px) para alta densidad de información.
+- **Layout General**: Sidebar lateral colapsable (acordeón para submenús) + Header minimalista (Breadcrumbs + Badges) + Contenido en **Bento Grid**.
+- **Animaciones**: Transiciones de página `fade-in`. Modales con efecto `zoom-in-95` + `fade-in` y backdrop blur. Hover en tarjetas: `scale-[1.01]` + brillo borde.
+- **Componentes**: Botones `rounded-md` con background opacity (ej. `bg-primary/20`) y texto sólido. Badges `rounded-full` o `pill`.
 
-#### 6.A.1 Home
-- Hero con propuesta de valor + CTA principal (iniciar/registrarse) y CTA secundario (WhatsApp).
-- Bloque de prueba social y preview visual del dashboard.
-- Header fijo con navegación pública y footer con enlaces clave.
+#### 6.A.1 Home (Hero Section)
+- **Titular**: Tipografía `Geist` bold masiva (ej. "Toma el control...").
+- **Subtítulo**: Breve, color `text-muted-foreground`.
+- **CTAs**:
+    - Primario: Botón **Verde Neón** (`bg-[#D3FF0A]`, text-black) con efecto hover glow.
+    - Secundario: Botón "Outline" o link simple con flecha.
+- **Visual**: Gráfico de EvilCharts animado (Line/Area) simulando crecimiento financiero o dashboard 3D glass.
+- **Fondo**: Gradiente radial sutil (azul/violeta oscuro) sobre base negra.
 
-#### 6.A.2 Producto
-- Sección de capacidades: ingresos/gastos/balance/categorías.
-- Bloques de valor: asistente, presupuestos, gastos grupales.
-- CTA hacia Planes o Registro.
+#### 6.A.2 Social Proof (Wall of Love)
+- **Formato**: Carrusel infinito (marquee) o grilla masonry.
+- **Componentes**: Tarjetas estilo "Twitter" con efecto **Glassmorphism** (`bg-white/5`, `backdrop-blur-md`, borde sutil).
+- **Contenido**: Avatares, nombres de usuario y testimonios cortos sobre control/ahorro.
 
-#### 6.A.3 Planes
-- Tabla comparativa Free/Pro/Premium.
-- Selector de moneda visible.
-- CTA individual por plan.
+#### 6.A.3 Stats ("Billeto en números")
+- **Diseño**: Banda horizontal limpia o grilla de 3-4 columnas.
+- **Métricas**: Números grandes en color **Verde Neón** o Blanco Brillante.
+- **Labels**: Texto pequeño descriptivo debajo (ej. "+50k Usuarios", "$2M Procesados").
 
-#### 6.A.4 Manifiesto
-- Secciones narrativas de marca en bloques legibles.
-- Cierre con CTA a registro/login.
+#### 6.A.4 Features (Producto)
+- **Estructura**: **Bento Grid** (grilla irregular de tarjetas).
+- **Tarjetas**:
+    1. **OCR Inteligente**: Icono de escaneo + demo visual de ticket.
+    2. **WhatsApp Native**: Captura de chat simulado.
+    3. **Presupuestos**: Gráfico de barra de progreso.
+    4. **Gastos Grupales**: Avatares superpuestos.
+- **Estilo**: Tarjetas oscuras (`bg-zinc-900`) con borde `border-white/10` y efecto hover leve (`scale-[1.02]`).
 
-#### 6.A.5 Blog
-- Listado de artículos estáticos (MVP: contenido en código).
-- Cards con título, resumen, fecha y etiquetas.
+#### 6.A.5 Planes (Pricing)
+- **Layout**: 3 Tarjetas verticales (Free, Pro, Premium).
+- **Plan Pro (Destacado)**:
+    - Borde o sombra en color **Verde Neón**.
+    - Badge "Más Popular" o "Recomendado".
+    - Botón CTA de color sólido (los otros son outline).
+- **Features**: Lista con checkmarks verdes (`lucide-react`).
 
-#### 6.A.6 FAQ
-- Acordeón de preguntas frecuentes (MVP estático en código).
-- CTA de contacto cuando no se resuelve la duda.
+#### 6.A.6 Soluciones para Negocios (Inspiración Gasti Business)
+- **Concepto**: Sección dedicada a PyMEs y autónomos.
+- **Titular**: "Billeto para tu Negocio".
+- **Copy**: "Gestión financiera avanzada para equipos y crecimiento."
+- **CTA**: "Lista de espera" o "Contáctanos".
+- **Visual**: Card distinta o sección con fondo ligeramente más claro (`bg-zinc-900/50`) para diferenciar.
 
-#### 6.A.7 Contacto
-- Bloque de información de contacto.
-- CTA de soporte por WhatsApp.
+#### 6.A.7 FAQ
+- **Diseño**: Acordeón (`shadcn/ui accordion`) de ancho limitado (max-w-2xl).
+- **Interacción**: Apertura suave con `framer-motion`.
+- **Estestica**: Texto pregunta claro, respuesta en `text-muted-foreground`.
 
-#### 6.A.8 Auth (Login y Registro)
-- Email + contraseña.
-- Continuar con Google.
-- Continuar con Apple.
-- Enlaces de recuperar contraseña, términos y cambio login/registro.
+#### 6.A.8 Footer (Contacto)
+- **Diseño**: Minimalista, borde superior `border-white/10`.
+- **Contenido**: Logo a la izquierda, links de legales/redes a la derecha.
+- **CTA Final**: "Empieza ahora" (texto simple o botón pequeño).
+
+#### 6.A.9 Auth (Login y Registro)
+- **Layout**: Tarjeta `Card` (`shadcn/ui`) centralizada en pantalla, ancho fijo, sombra sutil.
+- **Fondo**: Page background en Zinc-950; Card en Zinc-900 con borde `border-white/10`.
+- **Cabecera**: Logo centrado + título de bienvenida corto (Geist).
+- **Formulario**:
+    - Inputs con labels pequeños y placeholders descriptivos.
+    - Password con toggle visibility (ojo).
+- **CTA Principal**: Botón `width-full`, color **Verde Neón** (`bg-[#D3FF0A]`), texto negro, hover brillo.
+- **Social Auth**: Botones `variant="outline"` debajo con separador "O" y logos (Google/Apple).
+- **Footer**: Links a "Términos" y "Ayuda" (WhatsApp) fuera de la tarjeta o al pie.
 
 **Criterios de aceptación Frontend público**
 - Navegación correcta entre Home/Producto/Planes/Manifiesto/Blog/FAQ/Contacto/Login/Registro.
@@ -198,6 +238,27 @@ Criterios:
 - CTAs visibles sin solaparse.
 - Layout estable (sin saltos críticos perceptibles).
 
+### 6.C UI Kit & Componentes (Sistema de Diseño)
+**Inspirado en Gasti.pro**
+- **Botones**:
+  - `Primary`: Fondo `lime-300` (#D1F366), Texto `zinc-950`, `font-medium`, `rounded-md`, efecto `hover:bg-lime-400`, `active:scale-95`.
+  - `Secondary`: Fondo `zinc-800`, Texto `white`, Border `zinc-700`, `hover:bg-zinc-700`.
+  - `Ghost`: Fondo transparente, Texto `zinc-400`, `hover:text-white`, `hover:bg-white/5`.
+- **Inputs & Forms**:
+  - Fondo `zinc-900/50`, Borde `zinc-800`, Texto `white`, Placeholder `zinc-500`.
+  - Focus ring: `ring-1` `ring-lime-300/50` `border-lime-300`.
+  - Labels: Texto pequeño `text-xs` `uppercase` `tracking-wider` `text-zinc-500`.
+- **Tarjetas (Cards)**:
+  - Fondo `zinc-900`, Borde `border-white/5`.
+  - Sombra `shadow-xl` (difusa).
+  - Header de tarjeta con título en `text-sm` `text-zinc-400` e icono a la derecha.
+- **Modales**:
+  - Overlay: `bg-black/80` `backdrop-blur-sm`.
+  - Content: Centrado, `zoom-in-95` animation, Fondo `zinc-900`, Borde `zinc-800`.
+- **Badges / Chips**:
+  - Fondo suave (ej. `bg-lime-900/30`), Texto `text-lime-300`, Borde `border-lime-500/20`, `rounded-full`.
+- Layout estable (sin saltos críticos perceptibles).
+
 ### 6.0 Mapa de navegación cliente (app privada)
 - Asistente
 - Panel
@@ -205,14 +266,14 @@ Criterios:
 - Cuentas
 - Presupuestos
 - Metas
-- Herramientas:
+- Herramientas (Submenú en acordeón):
   - WhatsApp
   - Correo (forwarding)
   - Webhook
   - GasTag
   - Vaquitas
   - Integraciones
-- Perfil
+- Perfil (Usuario al pie del sidebar)
 - Configuración
 - Ayuda (FAQ)
 - Idioma
@@ -223,11 +284,13 @@ Criterios:
 - Prompt box + sugerencias rápidas (chips).
 - Respuestas con texto, tablas, mini-gráficos y deep links.
 - Acciones cliente: crear transacción, cuenta, presupuesto, meta y abrir dashboard.
-- Onboarding conversacional para usuarios nuevos:
-  - Preguntas de diagnóstico (ej. nivel de control, principal dificultad, objetivo, contexto).
-  - Respuestas rápidas por chips/botones para minimizar fricción.
-  - Cards de valor personalizadas (ej. control por categoría, presupuesto inteligente, metas de ahorro).
-  - Secuencia guiada hasta primer valor: moneda base + primera cuenta + primer gasto.
+- Onboarding conversacional "tipo Gasti" (Mandatorio):
+  1. **Bienvenida**: "Hola, soy Billeto..." + Input Nombre.
+  2. **Config Regional**: Card no bloqueante. "Confirmá tus datos". Dropdown País (ej. Perú) + Moneda (ej. PEN). Botón "Confirmar". Respuesta: "Genial, sos de [País] y tu moneda es [Moneda]".
+  3. **Personalización**: "Elegí un avatar". Grid 4x3 de emojis (Animales/Objetos).
+  4. **Conexión Canal**: "Este es tu código para WhatsApp". Muestra código grande (ej. `ABC12`) + Botón primario verde "Configurar WhatsApp" (abre `wa.me`) + Botón secundario "Copiar código" + Link "Continuar" (skip).
+  5. **Diagnóstico**: "Entendamos cómo manejás tu plata". Pregunta única con chips multiselección (ej. "No ahorro", "Gastos compartidos", "Deudas").
+  6. **Cierre**: "¡Perfil listo! Empecemos". Redirige al Dashboard o solicita primer gasto.
 
 **Criterios de aceptación**
 - Solo opera con sesión activa del cliente.
@@ -239,11 +302,17 @@ Criterios:
 ---
 
 ### 6.2 Panel (Dashboard)
-- Filtros: rango de fechas, moneda/unificación.
-- Tarjetas: balance, ingresos, gastos, últimas transacciones.
-- Visualizaciones: flujo por categoría, distribución, comparativa mensual.
-- Motor de gráficos principal: **EvilCharts**.
-- Estrategia de render: **fallback dual con degradación automática**.
+- **Layout**: **Bento Grid** (Grilla adaptativa de tarjetas de distintos tamaños).
+- **Filtros**: Rango de fechas (Dropdown), Moneda base.
+- **Tarjetas del Grid**:
+  1.  **Balance Total**: Gráfico de Area/Linea (Recharts/VisX) con degradado.
+  2.  **Ingresos vs Gastos**: Barras comparativas.
+  3.  **Racha/Actividad**: Mapa de calor (Heatmap estilo GitHub) mostrando actividad diaria.
+  4.  **Flujo de Dinero**: Diagrama **Sankey** simplificado (Ingresos -> Categorías de Gasto).
+  5.  **Últimas Transacciones**: Lista compacta.
+  6.  **Metas Rápidas**: Progreso circular o barra de logros.
+- **Motor de gráficos**: `Recharts` o `VisX` estilizados con el tema (ejes ocultos, tooltips custom dark).
+- **Interacción**: Las tarjetas pueden expandirse o llevar al detalle al hacer clic.
 
 **Criterios de aceptación**
 - Cambiar rango de fechas recalcula métricas y gráficos.
@@ -255,7 +324,11 @@ Criterios:
 
 ### 6.3 Transacciones
 Submódulos:
-1. **Tabla** con filtros, vistas guardadas, paginación y búsqueda.
+1. **Tabla** (DataGrid):
+   - Diseño estilo "Glass" con cabecera fija (`bg-zinc-900/80` backdrop-blur).
+   - Filas con `hover:bg-white/5` y acciones rápidas (editar/borrar) on-hover.
+   - Columnas sortables y filtros avanzados en popover.
+   - Paginación o Scroll infinito virtualizado.
 2. **Reglas** (cliente power): condiciones por texto/monto/cuenta/categoría/origen/fecha.
 3. **Recurrentes**: CRUD, estado (activa/pausada/finalizada), próximo disparo.
 4. **Importar extractos**: upload PDF/CSV → parsing → preview → confirmar.
@@ -282,9 +355,15 @@ Submódulos:
 - Presupuesto por categoría/grupo con alertas 80% y 100%.
 - Vista de progreso + sugerencias.
 
-### 6.6 Metas
-- Meta con monto y fecha objetivo.
-- Aportes periódicos opcionales + progreso.
+### 6.6 Metas (Goals)
+- **Modal de Creación**:
+  - Diseño centrado con animación `zoom-in`.
+  - **Tabs** para selección de categoría (Ahorro, Viaje, Deuda).
+  - **Grid de Plantillas**: Opciones predefinidas con Emojis grandes y colores de fondo.
+  - Formulario simple: Nombre, Monto Objetivo, Fecha Límite.
+- **Visualización**:
+  - Tarjetas de progreso con barra circular o lineal.
+  - "Confetti" visual al completar una meta.
 
 ---
 
@@ -385,6 +464,25 @@ Submódulos:
 - Al validar, se guarda mapping único: `workspace_id + user_id + wa_phone` en `Integration`.
 - Estados de integración: `pending`, `connected`, `error`, `revoked`.
 - Si el número ya está vinculado a otro workspace, bloquear y pedir revocación explícita.
+
+### 7.1.1 Mensajes de números no vinculados
+Cuando el sistema recibe un mensaje de un número de WhatsApp que **no** está vinculado a ninguna cuenta:
+
+1. **Respuesta automática (una sola vez por ventana de 24h)**:
+   > "¡Hola! 👋 Soy Billeto, tu asistente de finanzas.
+   > Para empezar, creá tu cuenta gratis en [link-registro] y vinculá este número desde Herramientas > WhatsApp.
+   > ¿Ya tenés cuenta? Iniciá sesión y vinculá tu WhatsApp en segundos."
+2. **Rate limit anti-spam**: máximo 1 respuesta automática por número por ventana de 24h. Mensajes adicionales del mismo número desconocido se ignoran silenciosamente.
+3. **Privacidad**: no almacenar el contenido del mensaje entrante si el número no está vinculado. Solo registrar en log operativo: `timestamp`, `wa_phone_hash` (hash, no plano), `event: unlinked_message_received`.
+4. **Número previamente revocado**: si el número tuvo vinculación previa (estado `revoked`), personalizar el mensaje: "Parece que desvinculaste tu cuenta anteriormente. Podés reconectar desde Herramientas > WhatsApp."
+5. **Métricas**: trackear `unlinked_messages_count` y `conversion_to_registration` para evaluar efectividad del CTA.
+
+**Criterios de aceptación**
+- Número desconocido recibe exactamente 1 mensaje de bienvenida por ventana de 24h.
+- El link de registro en el mensaje es válido y funcional.
+- No se persiste contenido del mensaje de números no vinculados en BD.
+- Log operativo registra el evento sin exponer PII del contenido.
+- Número con historial `revoked` recibe mensaje personalizado de reconexión.
 
 ### 7.2 Capacidades del canal
 - Recepción de mensajes: **texto, audio (voice note), imagen, PDF**.
@@ -507,6 +605,49 @@ Agentes principales:
 
 Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/STDIO) y jamás toca DB directo.
 
+### 9.3 Guardrails de IA (Confianza, Fallbacks y Anti-alucinación)
+
+#### 9.3.1 Umbrales de confianza
+Cada decisión de IA que afecte datos del usuario debe evaluarse con un **score de confianza** (0.0–1.0):
+
+| Operación | Umbral mínimo | Si confianza < umbral |
+|---|---|---|
+| Categorización automática de transacción | ≥ 0.75 | Preguntar al usuario: "¿Es [categoría]?" con opciones alternativas |
+| Extracción de comprobante (OCR/visión) | ≥ 0.80 | Mostrar preview de datos extraídos y pedir confirmación explícita |
+| Parsing de texto/audio (NLU) | ≥ 0.70 | Reformular al usuario: "Entendí X, ¿es correcto?" |
+| Detección de intención (tool selection) | ≥ 0.85 | No ejecutar tool; pedir aclaración |
+| Resolución de cuenta/moneda ambigua | ≥ 0.90 | Listar opciones y pedir selección explícita |
+
+#### 9.3.2 Política de confirmación
+- **Confirmación implícita** (confianza ≥ umbral): ejecutar acción y mostrar resumen con opción "Deshacer" o "Corregir".
+- **Confirmación explícita** (confianza < umbral): **nunca** ejecutar la acción sin respuesta afirmativa del usuario.
+- **Multi-turn obligatorio**: si faltan campos requeridos (monto, cuenta), el agente debe preguntar — nunca inventar valores.
+
+#### 9.3.3 Anti-alucinación y validación
+- **IDs de entidades**: todo ID referenciado por un agente (account_id, category_id) se valida contra la BD del workspace antes de ejecutar. Si el ID no existe → error controlado, no retry silencioso.
+- **Schema validation**: los argumentos de cada tool se validan contra un JSON Schema estricto antes de ejecutar. Argumentos fuera de schema → rechazo con log.
+- **Sandbox de tools**: los agentes solo pueden invocar tools de la allowlist de su rol. Intentos de invocar tools no permitidos se bloquean y registran en `AuditLog`.
+- **No-fabrication rule**: si el modelo genera datos que no provienen de input del usuario ni de la BD (ej. monto inventado, categoría inexistente), el sistema debe detectarlo y abortar la operación.
+
+#### 9.3.4 Fallback en cadena
+1. **Modelo primario** (potente) falla o timeout → retry 1x.
+2. Si persiste → **modelo secundario** (liviano/barato) con prompt simplificado.
+3. Si persiste → **respuesta genérica segura**: "No pude procesar tu solicitud. Podés intentar de nuevo o hacerlo desde el dashboard." + deep link.
+4. Cada fallback se registra con: `provider`, `model`, `latency_ms`, `error_type`, `fallback_level`.
+
+#### 9.3.5 Límites de costo y uso
+- **Tokens por request**: máx 4 096 tokens de salida por invocación de agente.
+- **Requests por usuario/día**: según plan (Free: 5, Pro: 100, Premium: 500).
+- **Costo mensual por workspace**: alerta interna si supera umbral configurable (ej. $10 USD/mes para Free).
+- **Logging obligatorio**: cada llamada a LLM registra `tokens_in`, `tokens_out`, `model`, `cost_estimate_usd`, `latency_ms`, `confidence_score`.
+
+#### 9.3.6 Criterios de aceptación Guardrails
+- Toda categorización con confianza < 0.75 genera pregunta de confirmación (nunca autoasigna sin preguntar).
+- Extracción de comprobante con confianza < 0.80 muestra preview editable antes de guardar.
+- Agente que referencia un ID inexistente recibe error controlado (no crash ni dato fabricado).
+- Cadena de fallback funciona: modelo primario timeout → secundario → mensaje genérico.
+- Logs de IA consultables por workspace para debugging y auditoría de costos.
+
 ---
 
 ## 10) xMCP.dev como capa canónica (WhatsApp, Web y Agentes)
@@ -546,6 +687,156 @@ Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/S
 - Cambiar moneda base → permitido con audit log obligatorio.
 - Límite: N acciones por minuto por usuario/workspace.
 
+### 10.6 Estrategia de Prompts y Recursos (xMCP)
+La arquitectura xMCP centraliza no solo las tools, sino también los **Prompts del Sistema** y el Contexto.
+
+#### 10.6.1 Gestión de Prompts como Recursos
+- Los prompts se definen en el servidor xMCP (ej. `src/prompts/*.ts`) y se exponen como recursos (`prompts.list`, `prompts.get`).
+- **Beneficio**: El "cerebro" (prompts + tools) está versionado en el mismo repositorio, facilitando la evolución conjunta.
+
+#### 10.6.2 Catálogo de Prompts del Sistema
+1. **`master-agent-prompt`**:
+   - Rol: Orquestador principal.
+   - Contexto inyectado: `current_time`, `user_name`, `plan_tier`, `subscription_status`.
+   - Instrucciones: Personalidad ("Asistente Financiero Profesional pero Cercano"), reglas de negocio de alto nivel, y directrices de uso de tools.
+2. **`transaction-categorizer-prompt`**:
+   - Rol: Clasificador especializado.
+   - Contexto: Lista de categorías activas del workspace.
+   - Instrucciones: Reglas de desambiguación y taxonomía.
+3. **`ocr-extraction-prompt`**:
+   - Rol: Extractor de visión.
+   - Instrucciones: Schema JSON estricto para extraer `total`, `currency`, `date`, `merchant` de imágenes.
+
+#### 10.6.3 Inyección de Contexto Dinámico
+- El servidor xMCP inyecta datos frescos (ej. saldo actual, fecha, configuración) en el prompt *antes* de enviarlo al LLM.
+- Esto reduce alucinaciones por contexto desactualizado y simplifica el cliente (Web/WhatsApp), que solo pide "dame el prompt inicial".
+
+### 10.7 Sistema de Ingeniería de Prompts (Avanzado)
+Este sistema implementa patrones de **Chain-of-Thought (CoT)**, **Few-Shot Prompting** y **Role-Playing** estricto para maximizar la precisión y reducir alucinaciones.
+
+#### 10.7.1 Principios de Diseño
+1.  **Delimitadores Claros**: Uso de `xml tags` (<context>, <instructions>, <history>) para separar secciones.
+2.  **Salida Estructurada**: JSON estricto para todas las acciones (tool calls).
+3.  **Pensamiento Privado (Hidden Chain of Thought)**: El modelo debe "razonar" antes de "actuar" dentro de un bloque `_thinking` para mejorar la deducción lógica.
+
+#### 10.7.2 Master Orchestrator (El Cerebro)
+**Rol**: Router central que entiende la intención y delega a especialistas o responde dudas generales.
+**Contexto**: Inyectado dinámicamente (`user_profile`, `current_state`, `active_tools`).
+
+```markdown
+<system_role>
+Eres Billeto Orchestrator, el núcleo de inteligencia de una fintech moderna.
+Tu misión: Analizar el input del usuario, pensar paso a paso y decidir la MEJOR herramienta o respuesta.
+</system_role>
+
+<context>
+Usuario: {{user_name}} (Plan: {{plan_tier}})
+Fecha: {{current_date}} ({{day_of_week}})
+Moneda Base: {{base_currency}}
+Hora: {{current_time}}
+</context>
+
+<instructions>
+1.  **Analiza la intención**: ¿Quiere registrar un gasto? ¿Consultar saldo? ¿Configurar algo?
+2.  **Verifica la seguridad**: Si pide borrar cuenta o datos sensibles, DELEGA a `security.require_dashboard`.
+3.  **Razona antes de actuar**: Usa un bloque `_thinking` para validar tu lógica.
+4.  **Selecciona la Tool**: Si la confianza es alta (>0.9), usa la tool. Si es ambigua, PREGUNTA.
+5.  **Multimodalidad**: Si hay imagen, DELEGA INMEDIATAMENTE a `transaction.extract_from_image`.
+</instructions>
+
+<few_shot_examples>
+Input: "Me compré un café por 500"
+_thinking: Usuario quiere registrar gasto. Monto=500. Moneda no especificada -> usar base (ARS). Categoría implícita -> Comida/Restaurantes. Fecha -> Hoy.
+Tool Call: transactions.create({ amount: 500, label: "Café", category_slug: "food_dining" })
+
+Input: "¿Cuánto gasté en Uber este mes?"
+_thinking: Consulta analítica. Filtro="Uber" (probablemente merchant o descripción). Rango="este mes".
+Tool Call: analytics.query({ text_filter: "Uber", range: "current_month" })
+</few_shot_examples>
+
+<output_format>
+Responde SIEMPRE en formato JSON válido:
+{
+  "_thinking": "tu razonamiento aquí...",
+  "tool_calls": [ { "name": "tool_name", "arguments": { ... } } ],
+  "response_text": "texto al usuario si no hay tool call"
+}
+</output_format>
+```
+
+#### 10.7.3 Transaction Parser (El Especialista)
+**Rol**: Extraer datos estructurados de inputs caóticos (texto natural, audios transcritos).
+**Técnica**: "Extract-Transform-Load" mental.
+
+```markdown
+<system_role>
+Eres el Transaction Parser de Billeto. Tu ÚNICO propósito es convertir texto desordenado en una transacción financiera perfecta.
+</system_role>
+
+<constraints>
+- Moneda: Si no se menciona, usa {{base_currency}}.
+- Fechas: Relativas ("ayer", "el viernes pasado") deben resolverse a ISO8601 YYYY-MM-DD.
+- Categorías: Debes mapear el gasto a una de las siguientes IDs: {{valid_categories_json}}. Si dudas, usa "uncategorized".
+- Merchant: Extrae el nombre del comercio si es obvio ("Starbucks", "Uber").
+</constraints>
+
+<extraction_rules>
+1. Si el usuario dice "Dólares" o "USD", la moneda es USD.
+2. Si el usuario dice "Cuotas", extrae `installments`.
+3. Detecta transferencias vs gastos. "Le pasé X a Y" es transferencia.
+</extraction_rules>
+
+<examples>
+User: "Ayer pagué la luz, fueron 15 lucas"
+Result:
+{
+  "amount": 15000,
+  "currency": "ARS",
+  "date": "{{yesterday_iso}}",
+  "description": "Pago de luz",
+  "category_id": "services_utility",
+  "type": "expense"
+}
+</examples>
+```
+
+#### 10.7.4 Data Analyst (El Insight)
+**Rol**: Generar respuestas narrativas y visualizaciones basadas en datos crudos.
+**Output**: Texto enriquecido con Markdown y referencias a gráficos.
+
+```markdown
+<system_role>
+Eres el Analista Financiero Sr. de Billeto.
+Tu trabajo no es solo dar el número, sino dar el CONTEXTO.
+</system_role>
+
+<style_guide>
+- Usa negritas para los montos importantes (**$50.000**).
+- Si el gasto subió respecto al mes pasado, usa un emoji de alerta ⚠️ o tendencia 📈.
+- Si el usuario pide gráficos, invoca `charts.render`.
+- Sé conciso. Nadie lee parrafadas en WhatsApp.
+</style_guide>
+
+<template_response>
+"En {{month}}, gastaste un total de **{{total_amount}}**.
+Principales categorías:
+1. 🍔 Comida: {{cat1_amount}} ({{cat1_percent}}%)
+2. 🚗 Transporte: {{cat2_amount}} ({{cat2_percent}}%)
+
+⚠️ Gastaste un 15% más que en {{prev_month}}. ¡Ojo con las salidas!"
+[Chart: spending_distribution_pie]
+</template_response>
+```
+
+### 10.8 Estrategia de Evaluación (Evals)
+Para mantener la calidad "Profesional", implementaremos tests automáticos (Evals) para los prompts:
+1.  **Golden Dataset**: 100 ejemplos de inputs reales (audios transcritos, fotos, textos cortos) con su "salida esperada" verificada por humanos.
+2.  **Regression Testing**: Antes de cualquier deploy de un cambio en los prompts, se corre el dataset.
+3.  **Métricas**:
+    *   *Accuracy de Intención*: % de veces que elige la tool correcta.
+    *   *Accuracy de Extracción*: % de campos (monto, fecha, moneda) extraídos perfectamente.
+    *   *Hallucination Rate*: % de respuestas con datos inventados (debe ser 0%).
+
 ---
 
 ## 11) Modelo de datos (mínimo)
@@ -565,6 +856,7 @@ Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/S
 - `WhatsAppMessage` (raw payload, normalized text, media refs)
 - `AuditLog` (actor, action, entity, before/after, timestamp)
 - `FXRate`
+- `Subscription` (workspace_id, plan_tier, status, current_period_start, current_period_end, trial_ends_at, cancelled_at, payment_provider, external_subscription_id)
 
 ### 11.2 Cardinalidades (MVP)
 - `User 1..N Membership`, `Workspace 1..N Membership`.
@@ -576,6 +868,7 @@ Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/S
 - `Integration(whatsapp) 1..N WhatsAppMessage`.
 - `Workspace 1..N Rule`, `Workspace 1..N RecurringTransaction`, `Workspace 1..N Budget`, `Workspace 1..N Goal`.
 - `Workspace 1..N AuditLog`.
+- `Workspace 1..1 Subscription` (todo workspace tiene exactamente una suscripción activa; Free por defecto al crear).
 
 ### 11.3 Constraints y reglas de integridad (críticas)
 - Todas las tablas de negocio deben incluir `workspace_id` obligatorio (multi-tenant estricto).
@@ -617,6 +910,8 @@ Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/S
 - `rule_status`: `active | paused`.
 - `budget_period`: `weekly | monthly`.
 - `goal_status`: `active | reached | paused | cancelled`.
+- `plan_tier`: `free | pro | premium`.
+- `subscription_status`: `active | trialing | past_due | cancelled | expired`.
 
 ### 11.6 Política de borrado (soft/hard delete)
 - **Soft delete obligatorio** (`deleted_at`, `deleted_by`) para:
@@ -675,10 +970,16 @@ Cada agente opera consumiendo endpoints canónicos de xMCP.dev (MCP sobre HTTP/S
 
 ## 13) Recomendación de Stack (para construirlo rápido y serio)
 ### 13.1 Frontend
+### 13.1 Frontend
 - **Next.js (React + TypeScript)** + App Router
-- **Tailwind CSS** + **shadcn/ui**
+- **Next.js (React + TypeScript)** + App Router
+- **shadcn/ui** (MANDATORIO) + **Tailwind CSS**
+- **Librerías Visuales**: `framer-motion` (animaciones), `lucide-react` (íconos), `geist` (tipografía).
 - Tabla: TanStack Table
-- Gráficos: **EvilCharts** (principal) + fallback estático cacheado
+- Tabla: TanStack Table
+- Gráficos: **EvilCharts** (MANDATORIO)
+  - Prerrequisitos: `recharts` y componentes `card` de shadcn/ui.
+  - Justificación: Visualizaciones animadas "plug-and-play" con estética dark-neon consistente.
 - Autenticación: NextAuth (o auth propia)
 
 ### 13.2 Backend
@@ -688,7 +989,10 @@ Opción B (Python):
 - **FastAPI** + SQLAlchemy + PostgreSQL
 
 Capa canónica MCP:
-- **xMCP.dev** para publicar endpoints/tools del dominio y consumo por agentes/canales.
+Capa canónica MCP:
+- **xMCP.dev**: Framework oficial para TypeScript.
+- **Inicialización obligatoria**: `npx create-xmcp-app@latest` (plantilla estándar).
+- Esto garantiza la estructura correcta para Tools, Prompts y Recursos compatible con el ecosistema MCP.
 
 Infra común:
 - Redis (cache + rate limit + jobs)
@@ -735,7 +1039,12 @@ Infra común:
 1. Repo monorepo (pnpm + turborepo) o mono (Next.js + API).
 2. CI básico (lint, typecheck, tests).
 3. Docker compose: Postgres + Redis + MinIO.
-4. Base de datos de desarrollo ya creada: `belleto_local`.
+3. Docker compose: Postgres + Redis + MinIO.
+4. Inicializar Shadcn UI:
+   - `npx shadcn@latest init` (estilo default, color slate/zinc, css variables).
+   - Instalar componentes base: `npx shadcn@latest add button input card dialog dropdown-menu avatar badge label`.
+5. Base de datos de desarrollo ya creada: `belleto_local`.
+6. Variable de entorno de desarrollo configurada (en `.env.local`, no commitear secretos):
 5. Variable de entorno de desarrollo configurada (en `.env.local`, no commitear secretos):
    - `DATABASE_URL=postgresql+asyncpg://postgres:luis789JLQL%40@localhost:5432/belleto_local`
 
@@ -751,7 +1060,15 @@ Infra común:
 10. Cuentas (CRUD).
 11. Categorías (seed + CRUD).
 12. Transacciones (CRUD + tabla + filtros).
-13. Dashboard cliente con EvilCharts + fallback.
+### Fase 2 — Core Cliente (App privada)
+9. Auth cliente + perfil base.
+10. Cuentas (CRUD).
+11. Categorías (seed + CRUD).
+12. Transacciones (CRUD + tabla + filtros).
+13. Dashboard cliente con **EvilCharts**:
+    - Instalar dependencias: `npm install recharts` y `npx shadcn@latest add card`.
+    - Integrar componentes de EvilCharts (Line/Bar/Pie) según documentación.
+    - Implementar fallback estático.
 
 ### Fase 3 — Automatización Cliente
 14. Reglas (modelo + UI básico).
@@ -768,7 +1085,9 @@ Infra común:
 
 ### Fase 5 — IA + WhatsApp
 23. Provider abstraction (OpenAI/Gemini).
-24. Servidor canónico de tools/endpoints con xMCP.dev.
+23. Provider abstraction (OpenAI/Gemini).
+24. Servidor canónico de tools/endpoints con xMCP.dev (iniciar con `npx create-xmcp-app@latest`).
+25. Asistente web con tool-calling contra endpoints canónicos xMCP.dev.
 25. Asistente web con tool-calling contra endpoints canónicos xMCP.dev.
 26. WhatsApp NLU (texto/audio/imagen/PDF) + `transactions.create`.
 27. Analíticas por WhatsApp + render de gráficos con EvilCharts + fallback dual.
