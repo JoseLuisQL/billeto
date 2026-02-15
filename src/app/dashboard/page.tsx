@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
@@ -9,17 +10,28 @@ import {
     TrendingDown,
     Activity,
 } from "lucide-react";
+import { obtenerResumenDashboard } from "@/lib/actions/transactions";
 
 /**
  * Página principal del Dashboard.
- * Componente client que usa useSession para acceder a datos del usuario.
- * Los datos financieros se cargarán vía API cuando se implemente el CRUD.
+ * Obtiene resumen financiero en tiempo real vía server action.
  */
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
 
-    // Loading state
+    const [resumen, setResumen] = useState<any>(null);
+    const [cargando, setCargando] = useState(true);
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            obtenerResumenDashboard().then((data) => {
+                setResumen(data);
+                setCargando(false);
+            });
+        }
+    }, [status]);
+
     if (status === "loading") {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -28,48 +40,46 @@ export default function DashboardPage() {
         );
     }
 
-    // No autenticado → redirigir
     if (status === "unauthenticated") {
         router.push("/login");
         return null;
     }
 
     const user = session!.user;
+    const moneda = resumen?.moneda || "PEN";
 
-    // Formateador de moneda
     const formatearMoneda = (monto: number) => {
         return new Intl.NumberFormat("es-PE", {
             style: "currency",
-            currency: "PEN",
+            currency: moneda,
         }).format(monto);
     };
 
-    // Tarjetas de resumen (placeholders — se llenarán con datos reales de la API)
     const tarjetas = [
         {
             label: "Balance Total",
-            valor: formatearMoneda(0),
+            valor: formatearMoneda(resumen?.balanceTotal ?? 0),
             icon: Wallet,
             color: "text-lime-400",
             bgColor: "bg-lime-400/10",
         },
         {
             label: "Ingresos (mes)",
-            valor: formatearMoneda(0),
+            valor: formatearMoneda(resumen?.ingresosMes ?? 0),
             icon: TrendingUp,
             color: "text-emerald-400",
             bgColor: "bg-emerald-400/10",
         },
         {
             label: "Gastos (mes)",
-            valor: formatearMoneda(0),
+            valor: formatearMoneda(resumen?.gastosMes ?? 0),
             icon: TrendingDown,
             color: "text-rose-400",
             bgColor: "bg-rose-400/10",
         },
         {
             label: "Transacciones",
-            valor: "0",
+            valor: String(resumen?.totalTransacciones ?? 0),
             icon: Activity,
             color: "text-blue-400",
             bgColor: "bg-blue-400/10",
@@ -78,12 +88,9 @@ export default function DashboardPage() {
 
     return (
         <div className="flex min-h-screen">
-            {/* Sidebar */}
             <DashboardSidebar user={user} />
-
-            {/* Contenido principal */}
             <main className="flex-1 ml-64 p-6">
-                {/* Header del dashboard */}
+                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-2xl font-bold text-white">
                         Hola, {user.name?.split(" ")[0]} 👋
@@ -100,7 +107,8 @@ export default function DashboardPage() {
                         return (
                             <div
                                 key={tarjeta.label}
-                                className="rounded-xl border border-white/10 bg-zinc-900/50 p-5"
+                                className={`rounded-xl border border-white/10 bg-zinc-900/50 p-5 ${cargando ? "animate-pulse" : ""
+                                    }`}
                             >
                                 <div className="flex items-center justify-between mb-3">
                                     <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -122,34 +130,77 @@ export default function DashboardPage() {
                     <div className="lg:col-span-2 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
                         <h3 className="text-sm font-medium text-white mb-4">Actividad mensual</h3>
                         <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                            Gráfico de actividad — se implementará con Recharts
+                            Gráfico de actividad — se integra en la próxima iteración
                         </div>
                     </div>
 
                     {/* Lista de cuentas */}
                     <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6">
                         <h3 className="text-sm font-medium text-white mb-4">Tus cuentas</h3>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50">
-                                <div>
-                                    <p className="text-sm font-medium text-white">Efectivo</p>
-                                    <p className="text-xs text-muted-foreground capitalize">cash</p>
-                                </div>
-                                <p className="text-sm font-semibold text-white">
-                                    {formatearMoneda(0)}
-                                </p>
+                        {cargando ? (
+                            <div className="space-y-3">
+                                {[1, 2].map((i) => (
+                                    <div key={i} className="h-14 rounded-lg bg-zinc-800/50 animate-pulse" />
+                                ))}
                             </div>
-                        </div>
+                        ) : (resumen?.cuentas?.length ?? 0) === 0 ? (
+                            <p className="text-sm text-muted-foreground">No tenés cuentas aún.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {resumen.cuentas.map((cuenta: any) => (
+                                    <div
+                                        key={cuenta.id}
+                                        className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50"
+                                    >
+                                        <div>
+                                            <p className="text-sm font-medium text-white">{cuenta.name}</p>
+                                            <p className="text-xs text-muted-foreground capitalize">{cuenta.type}</p>
+                                        </div>
+                                        <p className="text-sm font-semibold text-white">
+                                            {formatearMoneda(cuenta.currentBalance)}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Transacciones recientes (placeholder) */}
+                {/* Transacciones recientes */}
                 <div className="mt-6 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
                     <h3 className="text-sm font-medium text-white mb-4">Transacciones recientes</h3>
-                    <div className="text-center py-12 text-muted-foreground text-sm">
-                        <p>No hay transacciones aún.</p>
-                        <p className="mt-1">Registrá tu primer gasto para empezar.</p>
-                    </div>
+                    {cargando ? (
+                        <div className="space-y-2">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="h-10 rounded-lg bg-zinc-800/50 animate-pulse" />
+                            ))}
+                        </div>
+                    ) : (resumen?.ultimasTransacciones?.length ?? 0) === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground text-sm">
+                            <p>No hay transacciones aún.</p>
+                            <p className="mt-1">Registrá tu primer gasto para empezar.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-1">
+                            {resumen.ultimasTransacciones.map((tx: any) => (
+                                <div key={tx.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-zinc-800/30">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-lg">{tx.category?.icon || "📋"}</span>
+                                        <div>
+                                            <p className="text-sm text-white">{tx.description}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {tx.account} • {new Date(tx.date).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className={`text-sm font-medium ${tx.type === "income" ? "text-emerald-400" : "text-rose-400"
+                                        }`}>
+                                        {tx.type === "income" ? "+" : "-"}{formatearMoneda(tx.amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
