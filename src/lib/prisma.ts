@@ -1,37 +1,30 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
  * Singleton de PrismaClient para evitar múltiples conexiones
  * durante el desarrollo con hot-reload de Next.js.
  *
- * Usa lazy initialization para evitar conexiones prematuras
- * durante el build de Next.js cuando la BD no está disponible.
+ * Prisma 7 requiere un driver adapter para conectarse a la BD.
+ * Usamos @prisma/adapter-pg para PostgreSQL.
  */
 
 const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined;
 };
 
-/**
- * Obtener la instancia de PrismaClient.
- * Se inicializa de forma lazy para evitar errores de conexión
- * cuando la BD no está disponible (ej: durante `next build`).
- */
-function getPrismaClient(): PrismaClient {
-    if (!globalForPrisma.prisma) {
-        globalForPrisma.prisma = new PrismaClient();
+function createPrismaClient(): PrismaClient {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+        throw new Error("DATABASE_URL no está definida en las variables de entorno");
     }
-    return globalForPrisma.prisma;
+
+    const adapter = new PrismaPg({ connectionString });
+    return new PrismaClient({ adapter });
 }
 
-// Exportar un proxy que inicializa PrismaClient de forma lazy
-export const prisma = new Proxy({} as PrismaClient, {
-    get(_target, prop) {
-        const client = getPrismaClient();
-        const value = (client as any)[prop];
-        if (typeof value === "function") {
-            return value.bind(client);
-        }
-        return value;
-    },
-});
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = prisma;
+}
