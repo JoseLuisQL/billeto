@@ -11,6 +11,9 @@ import {
     Activity,
 } from "lucide-react";
 import { obtenerResumenDashboard } from "@/lib/actions/transactions";
+import { ActivityChart } from "@/components/dashboard/ActivityChart";
+import { CategoryPieChart } from "@/components/dashboard/CategoryPieChart";
+import { BalanceTrendChart } from "@/components/dashboard/BalanceTrendChart";
 
 /**
  * Página principal del Dashboard.
@@ -126,12 +129,25 @@ export default function DashboardPage() {
 
                 {/* Secciones de contenido */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Gráfico de actividad (placeholder) */}
+                    {/* Gráfico de actividad mensual */}
                     <div className="lg:col-span-2 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
                         <h3 className="text-sm font-medium text-white mb-4">Actividad mensual</h3>
-                        <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                            Gráfico de actividad — se integra en la próxima iteración
-                        </div>
+                        <ActivityChart />
+                    </div>
+
+                    {/* Distribución por categoría */}
+                    <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-6">
+                        <h3 className="text-sm font-medium text-white mb-4">Gastos por categoría</h3>
+                        <CategoryPieChart />
+                    </div>
+                </div>
+
+                {/* Fila 2: Balance trend + Cuentas */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                    {/* Balance trend */}
+                    <div className="lg:col-span-2 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
+                        <h3 className="text-sm font-medium text-white mb-4">Tendencia de balance</h3>
+                        <BalanceTrendChart />
                     </div>
 
                     {/* Lista de cuentas */}
