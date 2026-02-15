@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,34 +9,38 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { motion } from "framer-motion";
+import { iniciarSesion } from "@/lib/actions/auth";
 
 /**
- * Página de Login.
- * Tarjeta centralizada con formulario de email/password,
- * toggle de visibilidad de contraseña, y botones de social auth.
- * Diseño: Card en Zinc-900 con borde sutil sobre fondo Zinc-950.
+ * Página de Login con integración real de NextAuth.
+ * Usa server actions para iniciar sesión con credenciales.
  */
 export default function LoginPage() {
-    // Estado para mostrar/ocultar contraseña
+    const router = useRouter();
     const [mostrarPassword, setMostrarPassword] = useState(false);
-    // Estado de carga del formulario
     const [cargando, setCargando] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    /**
-     * Maneja el envío del formulario de login.
-     * En esta fase solo simula un envío con loading state.
-     */
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setCargando(true);
-        // Simulación de delay — se reemplazará con lógica real de auth
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        setCargando(false);
+        setError(null);
+
+        const formData = new FormData(e.currentTarget);
+        const resultado = await iniciarSesion(formData);
+
+        if (resultado.error) {
+            setError(resultado.error);
+            setCargando(false);
+        } else {
+            // Redirigir al dashboard después del login exitoso
+            router.push("/dashboard");
+            router.refresh();
+        }
     };
 
     return (
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">
-            {/* Gradiente de fondo decorativo */}
             <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-950/20 via-zinc-950 to-zinc-950 -z-10" />
 
             <motion.div
@@ -46,7 +51,6 @@ export default function LoginPage() {
             >
                 <Card className="bg-zinc-900 border-white/10 shadow-xl">
                     <CardHeader className="text-center space-y-2 pb-2">
-                        {/* Logo */}
                         <Link href="/" className="text-2xl font-bold tracking-tighter text-white block">
                             BILLETO
                         </Link>
@@ -57,6 +61,13 @@ export default function LoginPage() {
 
                     <CardContent className="pt-4">
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Error message */}
+                            {error && (
+                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                                    {error}
+                                </div>
+                            )}
+
                             {/* Campo Email */}
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-xs uppercase tracking-wider text-zinc-500">
@@ -66,6 +77,7 @@ export default function LoginPage() {
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                                     <Input
                                         id="email"
+                                        name="email"
                                         type="email"
                                         placeholder="tu@email.com"
                                         className="pl-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
@@ -88,6 +100,7 @@ export default function LoginPage() {
                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                                     <Input
                                         id="password"
+                                        name="password"
                                         type={mostrarPassword ? "text" : "password"}
                                         placeholder="••••••••"
                                         className="pl-10 pr-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
@@ -103,7 +116,6 @@ export default function LoginPage() {
                                 </div>
                             </div>
 
-                            {/* Botón principal */}
                             <Button
                                 type="submit"
                                 disabled={cargando}
@@ -128,6 +140,7 @@ export default function LoginPage() {
                             <Button
                                 variant="outline"
                                 className="bg-transparent border-white/10 hover:bg-white/5 text-white"
+                                onClick={() => {/* signIn('google') */ }}
                             >
                                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -148,7 +161,6 @@ export default function LoginPage() {
                             </Button>
                         </div>
 
-                        {/* Link a registro */}
                         <p className="text-center text-sm text-muted-foreground mt-6">
                             ¿No tenés cuenta?{" "}
                             <Link href="/register" className="text-lime-400 hover:text-lime-300 font-medium">
@@ -158,7 +170,6 @@ export default function LoginPage() {
                     </CardContent>
                 </Card>
 
-                {/* Links legales */}
                 <div className="flex justify-center gap-4 mt-6 text-xs text-muted-foreground">
                     <Link href="/terms" className="hover:text-white transition-colors">Términos</Link>
                     <Link href="/privacy" className="hover:text-white transition-colors">Privacidad</Link>

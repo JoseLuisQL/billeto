@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,32 +9,38 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
+import { registrarUsuario } from "@/lib/actions/auth";
 
 /**
- * Página de Registro.
- * Similar a Login pero con campo adicional de nombre.
- * Incluye validación visual de estados y botones de social auth.
+ * Página de Registro con integración real de server actions.
+ * Crea usuario + workspace + categorías + cuenta por defecto.
  */
 export default function RegisterPage() {
-    // Estado para mostrar/ocultar contraseña
+    const router = useRouter();
     const [mostrarPassword, setMostrarPassword] = useState(false);
-    // Estado de carga del formulario
     const [cargando, setCargando] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    /**
-     * Maneja el envío del formulario de registro.
-     * En esta fase solo simula un envío con loading state.
-     */
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setCargando(true);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        setCargando(false);
+        setError(null);
+
+        const formData = new FormData(e.currentTarget);
+        const resultado = await registrarUsuario(formData);
+
+        if (resultado.error) {
+            setError(resultado.error);
+            setCargando(false);
+        } else {
+            // Redirigir al dashboard después del registro exitoso
+            router.push("/dashboard");
+            router.refresh();
+        }
     };
 
     return (
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">
-            {/* Gradiente de fondo decorativo */}
             <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-lime-950/20 via-zinc-950 to-zinc-950 -z-10" />
 
             <motion.div
@@ -54,6 +61,13 @@ export default function RegisterPage() {
 
                     <CardContent className="pt-4">
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Error message */}
+                            {error && (
+                                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                                    {error}
+                                </div>
+                            )}
+
                             {/* Campo Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-xs uppercase tracking-wider text-zinc-500">
@@ -63,6 +77,7 @@ export default function RegisterPage() {
                                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                                     <Input
                                         id="name"
+                                        name="name"
                                         type="text"
                                         placeholder="Tu nombre"
                                         className="pl-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
@@ -80,6 +95,7 @@ export default function RegisterPage() {
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                                     <Input
                                         id="email"
+                                        name="email"
                                         type="email"
                                         placeholder="tu@email.com"
                                         className="pl-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
@@ -97,6 +113,7 @@ export default function RegisterPage() {
                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                                     <Input
                                         id="password"
+                                        name="password"
                                         type={mostrarPassword ? "text" : "password"}
                                         placeholder="Mínimo 8 caracteres"
                                         className="pl-10 pr-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
@@ -113,7 +130,6 @@ export default function RegisterPage() {
                                 </div>
                             </div>
 
-                            {/* Botón principal */}
                             <Button
                                 type="submit"
                                 disabled={cargando}
@@ -122,7 +138,6 @@ export default function RegisterPage() {
                                 {cargando ? "Creando cuenta..." : "Crear cuenta gratis"}
                             </Button>
 
-                            {/* Texto legal */}
                             <p className="text-xs text-center text-muted-foreground leading-relaxed">
                                 Al registrarte, aceptás nuestros{" "}
                                 <Link href="/terms" className="text-lime-400 hover:text-lime-300">
@@ -151,6 +166,7 @@ export default function RegisterPage() {
                             <Button
                                 variant="outline"
                                 className="bg-transparent border-white/10 hover:bg-white/5 text-white"
+                                onClick={() => {/* signIn('google') */ }}
                             >
                                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -171,7 +187,6 @@ export default function RegisterPage() {
                             </Button>
                         </div>
 
-                        {/* Link a login */}
                         <p className="text-center text-sm text-muted-foreground mt-6">
                             ¿Ya tenés cuenta?{" "}
                             <Link href="/login" className="text-lime-400 hover:text-lime-300 font-medium">

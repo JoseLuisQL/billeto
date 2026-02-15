@@ -1,0 +1,457 @@
+// Esquema de base de datos para BILLETO — MVP
+// Basado en el PRD sección 11 (Modelo de datos)
+// Multi-tenant por workspace_id en todas las tablas de negocio
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================
+// ENTIDADES DE AUTENTICACIÓN Y USUARIOS
+// =============================================
+
+/// Tabla de usuarios del sistema
+/// Cada usuario puede pertenecer a múltiples workspaces vía Membership
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  passwordHash  String?   @map("password_hash")
+  avatar        String?   // Emoji o URL del avatar seleccionado
+
+  // Campos de eliminación de cuenta
+  scheduledForDeletionAt DateTime? @map("scheduled_for_deletion_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones con NextAuth
+  accounts      AuthAccount[]
+  sessions      Session[]
+
+  // Relaciones de negocio
+  memberships   Membership[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+/// Cuentas de autenticación OAuth (NextAuth)
+model AuthAccount {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_accounts")
+}
+
+/// Sesiones de usuario (NextAuth)
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+/// Token de verificación de email (NextAuth)
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =============================================
+// ENTIDADES DE NEGOCIO — MULTI-TENANT
+// =============================================
+
+/// Workspace: unidad de aislamiento multi-tenant
+/// Cada workspace agrupa cuentas, transacciones y configuraciones
+model Workspace {
+  id            String  @id @default(cuid())
+  name          String
+  baseCurrency  String  @default("PEN") @map("base_currency")
+  country       String  @default("PE")
+  timezone      String  @default("America/Lima")
+
+  // Configuración de onboarding
+  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
+
+  // Soft delete
+  deletedAt  DateTime? @map("deleted_at")
+  deletedBy  String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  memberships           Membership[]
+  accounts              Account[]
+  categories            Category[]
+  transactions          Transaction[]
+  rules                 Rule[]
+  recurringTransactions RecurringTransaction[]
+  budgets               Budget[]
+  goals                 Goal[]
+  integrations          Integration[]
+  auditLogs             AuditLog[]
+  subscription          Subscription?
+
+  @@map("workspaces")
+}
+
+/// Membership: relación usuario <-> workspace con roles
+model Membership {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+  role        String @default("owner") // owner | member | viewer
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("memberships")
+}
+
+/// Cuenta financiera del usuario (banco, efectivo, wallet)
+model Account {
+  id             String  @id @default(cuid())
+  workspaceId    String  @map("workspace_id")
+  name           String
+  normalizedName String  @map("normalized_name")
+  type           String  @default("cash") // bank | cash | wallet
+  currency       String  @default("PEN")
+  initialBalance Decimal @default(0) @map("initial_balance") @db.Decimal(15, 2)
+  currentBalance Decimal @default(0) @map("current_balance") @db.Decimal(15, 2)
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([workspaceId, normalizedName])
+  @@map("accounts")
+}
+
+/// Categoría de transacción (ingreso/gasto)
+model Category {
+  id             String  @id @default(cuid())
+  workspaceId    String  @map("workspace_id")
+  name           String
+  normalizedName String  @map("normalized_name")
+  icon           String? // Emoji o nombre de ícono
+  color          String? // Color hex para la UI
+  type           String  @default("expense") // expense | income | both
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([workspaceId, normalizedName])
+  @@map("categories")
+}
+
+/// Transacción financiera (gasto, ingreso o transferencia)
+model Transaction {
+  id              String   @id @default(cuid())
+  workspaceId     String   @map("workspace_id")
+  accountId       String   @map("account_id")
+  categoryId      String?  @map("category_id")
+
+  // Montos y moneda
+  amountOriginal  Decimal  @map("amount_original") @db.Decimal(15, 2)
+  currencyOriginal String  @map("currency_original")
+  amountBase      Decimal  @map("amount_base") @db.Decimal(15, 2)
+  baseCurrency    String   @map("base_currency")
+  fxRateId        String?  @map("fx_rate_id")
+
+  // Datos de la transacción
+  description     String
+  type            String   @default("expense") // expense | income | transfer
+  status          String   @default("posted") // posted | pending | voided
+  date            DateTime @default(now())
+  source          String   @default("web") // web | whatsapp | email | webhook | import | rule
+
+  // Idempotencia
+  requestId       String?  @map("request_id")
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account     Account      @relation(fields: [accountId], references: [id])
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  fxRate      FXRate?      @relation(fields: [fxRateId], references: [id])
+  attachments Attachment[]
+
+  @@index([workspaceId, date(sort: Desc)])
+  @@index([workspaceId, categoryId, date(sort: Desc)])
+  @@index([workspaceId, accountId, date(sort: Desc)])
+  @@map("transactions")
+}
+
+/// Archivo adjunto a una transacción (imagen, PDF)
+model Attachment {
+  id            String @id @default(cuid())
+  transactionId String @map("transaction_id")
+  fileUrl       String @map("file_url")
+  fileType      String @map("file_type") // image | pdf
+  fileName      String? @map("file_name")
+  fileSizeBytes Int?    @map("file_size_bytes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+/// Tipo de cambio (FX Rate) para multi-moneda
+model FXRate {
+  id         String   @id @default(cuid())
+  provider   String   // fuente del tipo de cambio
+  pair       String   // ej: "ARS/USD"
+  rate       Decimal  @db.Decimal(18, 8)
+  fetchedAt  DateTime @map("fetched_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  transactions Transaction[]
+
+  @@map("fx_rates")
+}
+
+/// Regla de categorización automática
+model Rule {
+  id          String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  name        String
+  conditions  Json   // JSON con condiciones de matching
+  actions     Json   // JSON con acciones a ejecutar
+  status      String @default("active") // active | paused
+  priority    Int    @default(0)
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("rules")
+}
+
+/// Transacción recurrente (suscripciones, pagos periódicos)
+model RecurringTransaction {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String
+  accountId   String?  @map("account_id")
+  categoryId  String?  @map("category_id")
+  type        String   @default("expense") // expense | income
+  frequency   String   // daily | weekly | monthly | yearly
+  status      String   @default("active") // active | paused | finished
+  nextRunAt   DateTime @map("next_run_at")
+  lastRunAt   DateTime? @map("last_run_at")
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, nextRunAt])
+  @@map("recurring_transactions")
+}
+
+/// Presupuesto por categoría con alertas
+model Budget {
+  id          String  @id @default(cuid())
+  workspaceId String  @map("workspace_id")
+  categoryId  String? @map("category_id")
+  name        String
+  amount      Decimal @db.Decimal(15, 2)
+  currency    String
+  period      String  @default("monthly") // weekly | monthly
+  alertAt80   Boolean @default(true) @map("alert_at_80")
+  alertAt100  Boolean @default(true) @map("alert_at_100")
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
+
+/// Meta financiera (ahorro, viaje, deuda)
+model Goal {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  targetAmount Decimal @map("target_amount") @db.Decimal(15, 2)
+  currentAmount Decimal @default(0) @map("current_amount") @db.Decimal(15, 2)
+  currency    String
+  category    String?  // ahorro | viaje | deuda
+  emoji       String?  // Emoji representativo
+  deadline    DateTime?
+  status      String   @default("active") // active | reached | paused | cancelled
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("goals")
+}
+
+/// Integración externa (WhatsApp, Email, Webhook)
+model Integration {
+  id          String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  type        String // whatsapp | email_forwarding | webhook | bank_email
+  status      String @default("pending") // pending | connected | error | paused | revoked
+  config      Json?  // Configuración específica del tipo
+
+  // WhatsApp específico
+  waPhoneE164 String? @map("wa_phone_e164")
+
+  // Email forwarding específico
+  forwardingEmail String? @map("forwarding_email")
+
+  // Webhook específico
+  webhookUrl String? @map("webhook_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Soft delete
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by")
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  whatsappMessages WhatsAppMessage[]
+
+  @@index([workspaceId, type, status])
+  @@map("integrations")
+}
+
+/// Mensaje de WhatsApp (para trazabilidad y procesamiento)
+model WhatsAppMessage {
+  id              String @id @default(cuid())
+  integrationId   String @map("integration_id")
+  waMessageId     String @map("wa_message_id")
+  direction       String // inbound | outbound
+  processingStatus String @default("received") @map("processing_status") // received | parsed | requires_confirmation | applied | failed
+  contentType     String @default("text") @map("content_type") // text | audio | image | pdf
+  rawPayload      Json?  @map("raw_payload")
+  normalizedText  String? @map("normalized_text")
+  mediaUrl        String? @map("media_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, waMessageId])
+  @@map("whatsapp_messages")
+}
+
+/// Registro de auditoría para trazabilidad
+model AuditLog {
+  id          String  @id @default(cuid())
+  workspaceId String? @map("workspace_id")
+  actorId     String  @map("actor_id")
+  actorType   String  @default("user") @map("actor_type") // user | system | agent
+  action      String  // create | update | delete | login | etc
+  entity      String  // transaction | account | category | etc
+  entityId    String? @map("entity_id")
+  before      Json?   // Estado anterior (para updates/deletes)
+  after       Json?   // Estado posterior (para creates/updates)
+  metadata    Json?   // Datos adicionales (IP, user-agent, etc)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor     User       @relation(fields: [actorId], references: [id])
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+/// Suscripción del workspace (plan Free/Pro/Premium)
+model Subscription {
+  id                     String    @id @default(cuid())
+  workspaceId            String    @unique @map("workspace_id")
+  planTier               String    @default("free") @map("plan_tier") // free | pro | premium
+  status                 String    @default("active") // active | trialing | past_due | cancelled | expired
+  currentPeriodStart     DateTime? @map("current_period_start")
+  currentPeriodEnd       DateTime? @map("current_period_end")
+  trialEndsAt            DateTime? @map("trial_ends_at")
+  cancelledAt            DateTime? @map("cancelled_at")
+  paymentProvider        String?   @map("payment_provider")
+  externalSubscriptionId String?   @map("external_subscription_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
