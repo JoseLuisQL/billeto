@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "xmcp dev & next dev",
+    "dev": "concurrently \"xmcp dev\" \"next dev\"",
     "build": "xmcp build && next build",
     "start": "next start",
     "lint": "eslint"
@@ -38,6 +38,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "shadcn": "^3.8.4",
