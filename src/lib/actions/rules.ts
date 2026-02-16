@@ -136,7 +136,12 @@ export async function actualizarRegla(
 
         if (data.name) updateData.name = data.name;
         if (data.priority !== undefined) updateData.priority = data.priority;
-        if (data.status) updateData.status = data.status;
+        if (data.status) {
+            if (data.status !== "active" && data.status !== "paused") {
+                return { ok: false, error: "Estado inválido. Usá active o paused." };
+            }
+            updateData.status = data.status;
+        }
 
         if (data.conditionField && data.conditionOperator && data.conditionValue) {
             updateData.conditions = {
@@ -153,10 +158,22 @@ export async function actualizarRegla(
             };
         }
 
-        const regla = await prisma.rule.update({
-            where: { id },
+        const updated = await prisma.rule.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: updateData,
         });
+
+        if (updated.count === 0) {
+            return { ok: false, error: "Regla no encontrada o sin permisos" };
+        }
+
+        const regla = await prisma.rule.findFirst({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
+        });
+
+        if (!regla) {
+            return { ok: false, error: "Regla no encontrada tras actualizar" };
+        }
 
         await prisma.auditLog.create({
             data: {
@@ -190,10 +207,14 @@ export async function eliminarRegla(id: string) {
 
         if (!regla) return { ok: false, error: "Regla no encontrada" };
 
-        await prisma.rule.update({
-            where: { id },
+        const deleted = await prisma.rule.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { deletedAt: new Date(), deletedBy: userId },
         });
+
+        if (deleted.count === 0) {
+            return { ok: false, error: "Regla no encontrada o sin permisos" };
+        }
 
         await prisma.auditLog.create({
             data: {

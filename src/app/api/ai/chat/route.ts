@@ -83,16 +83,40 @@ Respondé siempre en español, sé breve y eficiente.`;
                     category_id: z.string().optional().describe("ID de categoría"),
                     account_id: z.string().optional().describe("ID de cuenta"),
                     date: z.string().optional().describe("Fecha ISO-8601 (YYYY-MM-DD)"),
+                    request_id: z.string().optional().describe("ID idempotente para evitar duplicados"),
                 }),
-                execute: async ({ amount, description, type, category_id, account_id, date }) => {
-                    console.log("🔧 Tool Call: transactions_create", { amount, description, account_id });
+                execute: async ({ amount, description, type, category_id, account_id, date, request_id }) => {
+                    console.log("🔧 Tool Call: transactions_create", { amount, description, account_id, request_id });
                     try {
+                        // 0. Idempotencia
+                        if (request_id) {
+                            const existing = await prisma.transaction.findFirst({
+                                where: { workspaceId, requestId: request_id, deletedAt: null },
+                                include: { category: true, account: true },
+                            });
+
+                            if (existing) {
+                                return {
+                                    success: true,
+                                    message: `Transacción ya registrada previamente (${request_id}).`,
+                                    transaction: {
+                                        id: existing.id,
+                                        description: existing.description,
+                                        amount: existing.amountBase,
+                                        accountName: existing.account.name,
+                                        categoryName: existing.category?.name || "Sin categoría",
+                                    },
+                                    deduplicated: true,
+                                };
+                            }
+                        }
+
                         // 1. Account Fallback Logic
                         let finalAccountId = account_id;
                         if (!finalAccountId) {
                             console.log("  - Finding fallback account...");
                             const accounts = await prisma.account.findMany({
-                                where: { workspaceId },
+                                where: { workspaceId, deletedAt: null },
                                 orderBy: { name: 'asc' }
                             });
 
@@ -111,32 +135,36 @@ Respondé siempre en español, sé breve y eficiente.`;
                             console.log("  - Selected account:", finalAccountId);
                         }
 
-                        // 2. Balance update
+                        // 2. Balance update + create transaction (atómico)
                         const amountNum = Number(amount);
                         const increment = type === "income" ? amountNum : -amountNum;
 
-                        await prisma.account.update({
-                            where: { id: finalAccountId, workspaceId },
-                            data: { currentBalance: { increment } },
-                        });
+                        const tx = await prisma.$transaction(async (db) => {
+                            const updatedAccount = await db.account.updateMany({
+                                where: { id: finalAccountId as string, workspaceId, deletedAt: null },
+                                data: { currentBalance: { increment } },
+                            });
 
-                        // 3. Create Transaction
-                        console.log("  - Creating transaction record...");
-                        const tx = await prisma.transaction.create({
-                            data: {
-                                amountOriginal: amountNum,
-                                amountBase: amountNum,
-                                currencyOriginal: "PEN",
-                                baseCurrency: "PEN",
-                                description,
-                                type: type as "income" | "expense",
-                                date: date ? new Date(date) : new Date(),
-                                categoryId: category_id,
-                                accountId: finalAccountId as string,
-                                workspaceId,
-                                // userId field does not exist on Transaction model
-                            },
-                            include: { category: true, account: true }
+                            if (updatedAccount.count === 0) {
+                                throw new Error("Cuenta no encontrada o sin permisos");
+                            }
+
+                            return db.transaction.create({
+                                data: {
+                                    amountOriginal: amountNum,
+                                    amountBase: amountNum,
+                                    currencyOriginal: "PEN",
+                                    baseCurrency: "PEN",
+                                    description,
+                                    type: type as "income" | "expense",
+                                    date: date ? new Date(date) : new Date(),
+                                    categoryId: category_id,
+                                    accountId: finalAccountId as string,
+                                    workspaceId,
+                                    requestId: request_id,
+                                },
+                                include: { category: true, account: true }
+                            });
                         });
                         console.log("  - Transaction created:", tx.id);
 

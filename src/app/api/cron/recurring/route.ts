@@ -36,7 +36,8 @@ export async function GET(req: Request) {
         const errores: string[] = [];
 
         for (const rec of pendientes) {
-            if (!rec.accountId) continue;
+            const accountId = rec.accountId;
+            if (!accountId) continue;
 
             try {
                 const cambioBalance =
@@ -45,31 +46,40 @@ export async function GET(req: Request) {
                 // Calcular siguiente fecha
                 const nextRun = calcularSiguiente(ahora, rec.frequency);
 
-                // Crear transacción y actualizar en una operación
-                await prisma.transaction.create({
-                    data: {
-                        workspaceId: rec.workspaceId,
-                        accountId: rec.accountId,
-                        categoryId: rec.categoryId,
-                        amountOriginal: rec.amount,
-                        currencyOriginal: rec.currency,
-                        amountBase: rec.amount,
-                        baseCurrency: rec.workspace.baseCurrency,
-                        description: `${rec.name} (recurrente)`,
-                        type: rec.type,
-                        date: ahora,
-                        source: "cron",
-                    },
-                });
+                await prisma.$transaction(async (tx) => {
+                    await tx.transaction.create({
+                        data: {
+                            workspaceId: rec.workspaceId,
+                            accountId,
+                            categoryId: rec.categoryId,
+                            amountOriginal: rec.amount,
+                            currencyOriginal: rec.currency,
+                            amountBase: rec.amount,
+                            baseCurrency: rec.workspace.baseCurrency,
+                            description: `${rec.name} (recurrente)`,
+                            type: rec.type,
+                            date: ahora,
+                            source: "cron",
+                        },
+                    });
 
-                await prisma.account.update({
-                    where: { id: rec.accountId },
-                    data: { currentBalance: { increment: cambioBalance } },
-                });
+                    const accountUpdated = await tx.account.updateMany({
+                        where: { id: accountId, workspaceId: rec.workspaceId, deletedAt: null },
+                        data: { currentBalance: { increment: cambioBalance } },
+                    });
 
-                await prisma.recurringTransaction.update({
-                    where: { id: rec.id },
-                    data: { lastRunAt: ahora, nextRunAt: nextRun },
+                    if (accountUpdated.count === 0) {
+                        throw new Error("Cuenta recurrente no encontrada o sin permisos");
+                    }
+
+                    const recurringUpdated = await tx.recurringTransaction.updateMany({
+                        where: { id: rec.id, workspaceId: rec.workspaceId, deletedAt: null, status: "active" },
+                        data: { lastRunAt: ahora, nextRunAt: nextRun },
+                    });
+
+                    if (recurringUpdated.count === 0) {
+                        throw new Error("Recurrente no disponible para actualización");
+                    }
                 });
 
                 ejecutadas++;

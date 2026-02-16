@@ -108,7 +108,7 @@ export default function RulesPage() {
     }
 
     async function handleToggleStatus(regla: any) {
-        const nuevoStatus = regla.status === "active" ? "inactive" : "active";
+        const nuevoStatus = regla.status === "active" ? "paused" : "active";
         await actualizarRegla(regla.id, { status: nuevoStatus });
         cargarDatos();
     }
@@ -208,7 +208,7 @@ export default function RulesPage() {
                                                         : "bg-zinc-700/50 text-zinc-500"
                                                         }`}
                                                 >
-                                                    {regla.status === "active" ? "Activa" : "Inactiva"}
+                                                    {regla.status === "active" ? "Activa" : "Pausada"}
                                                 </button>
                                             </td>
                                             <td className="px-4 py-3 text-right">

@@ -199,10 +199,14 @@ export async function eliminarTransaccion(id: string) {
 
         await prisma.$transaction(async (tx: TxClient) => {
             // 1. Soft delete de la transacción
-            await tx.transaction.update({
-                where: { id },
+            const deleted = await tx.transaction.updateMany({
+                where: { id, workspaceId: workspace.id, deletedAt: null },
                 data: { deletedAt: new Date(), deletedBy: userId },
             });
+
+            if (deleted.count === 0) {
+                throw new Error("Transacción no encontrada o sin permisos");
+            }
 
             // 2. Revertir balance
             await tx.account.update({

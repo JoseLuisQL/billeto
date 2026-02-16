@@ -128,10 +128,22 @@ export async function actualizarCategoria(id: string, formData: FormData) {
 
         if (existente) return { error: "Ya existe una categoría con ese nombre." };
 
-        const actualizada = await prisma.category.update({
-            where: { id },
+        const updated = await prisma.category.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { name: name.trim(), normalizedName, icon, color, type },
         });
+
+        if (updated.count === 0) {
+            return { error: "Categoría no encontrada o sin permisos." };
+        }
+
+        const actualizada = await prisma.category.findFirst({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
+        });
+
+        if (!actualizada) {
+            return { error: "Categoría no encontrada tras actualizar." };
+        }
 
         revalidatePath("/dashboard/categories");
         return { success: true, categoria: actualizada };
@@ -162,10 +174,14 @@ export async function eliminarCategoria(id: string) {
             return { error: `No se puede eliminar: tiene ${txCount} transacciones asociadas.` };
         }
 
-        await prisma.category.update({
-            where: { id },
+        const deleted = await prisma.category.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { deletedAt: new Date(), deletedBy: userId },
         });
+
+        if (deleted.count === 0) {
+            return { error: "Categoría no encontrada o sin permisos." };
+        }
 
         revalidatePath("/dashboard/categories");
         return { success: true };

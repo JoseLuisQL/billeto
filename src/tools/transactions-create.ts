@@ -21,7 +21,7 @@ export const metadata = {
         title: "Crear transacción",
         readOnlyHint: false,
         destructiveHint: false,
-        idempotentHint: false,
+        idempotentHint: true,
     },
 };
 
@@ -31,10 +31,10 @@ export default async function transactionsCreate(
 ) {
     const { workspaceId, userId } = context;
 
-    // Si se proporcionó request_id, verificar idempotencia
+    // Si se proporcionó request_id, verificar idempotencia real
     if (args.request_id) {
         const existing = await prisma.transaction.findFirst({
-            where: { workspaceId, description: { contains: args.request_id } },
+            where: { workspaceId, requestId: args.request_id, deletedAt: null },
         });
         if (existing) {
             return `⚠️ Transacción ya registrada (request_id: ${args.request_id}). ID: ${existing.id}`;
@@ -80,14 +80,19 @@ export default async function transactionsCreate(
                 description: args.description.trim(),
                 type: args.type,
                 source: args.source,
+                requestId: args.request_id,
                 date,
             },
         });
 
-        await db.account.update({
-            where: { id: accountId! },
+        const accountUpdated = await db.account.updateMany({
+            where: { id: accountId!, workspaceId, deletedAt: null },
             data: { currentBalance: { increment: cambioBalance } },
         });
+
+        if (accountUpdated.count === 0) {
+            throw new Error("Cuenta no encontrada o sin permisos");
+        }
 
         await db.auditLog.create({
             data: {

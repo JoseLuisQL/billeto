@@ -154,10 +154,22 @@ export async function actualizarCuenta(id: string, formData: FormData) {
 
         const before = { name: cuenta.name, type: cuenta.type, currency: cuenta.currency };
 
-        const actualizada = await prisma.account.update({
-            where: { id },
+        const updated = await prisma.account.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { name: name.trim(), normalizedName, type, currency },
         });
+
+        if (updated.count === 0) {
+            return { error: "Cuenta no encontrada o sin permisos." };
+        }
+
+        const actualizada = await prisma.account.findFirst({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
+        });
+
+        if (!actualizada) {
+            return { error: "Cuenta no encontrada tras actualizar." };
+        }
 
         await prisma.auditLog.create({
             data: {
@@ -200,10 +212,14 @@ export async function eliminarCuenta(id: string) {
             return { error: `No se puede eliminar: tiene ${txCount} transacciones asociadas.` };
         }
 
-        await prisma.account.update({
-            where: { id },
+        const deleted = await prisma.account.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { deletedAt: new Date(), deletedBy: userId },
         });
+
+        if (deleted.count === 0) {
+            return { error: "Cuenta no encontrada o sin permisos." };
+        }
 
         await prisma.auditLog.create({
             data: {

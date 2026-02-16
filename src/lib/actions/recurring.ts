@@ -147,10 +147,22 @@ export async function actualizarRecurrente(
         if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
         if (data.status) updateData.status = data.status;
 
-        const recurrente = await prisma.recurringTransaction.update({
-            where: { id },
+        const updated = await prisma.recurringTransaction.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: updateData,
         });
+
+        if (updated.count === 0) {
+            return { ok: false, error: "Recurrente no encontrado o sin permisos" };
+        }
+
+        const recurrente = await prisma.recurringTransaction.findFirst({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
+        });
+
+        if (!recurrente) {
+            return { ok: false, error: "Recurrente no encontrado tras actualizar" };
+        }
 
         await prisma.auditLog.create({
             data: {
@@ -184,10 +196,14 @@ export async function eliminarRecurrente(id: string) {
 
         if (!existente) return { ok: false, error: "Recurrente no encontrado" };
 
-        await prisma.recurringTransaction.update({
-            where: { id },
+        const deleted = await prisma.recurringTransaction.updateMany({
+            where: { id, workspaceId: workspace.id, deletedAt: null },
             data: { deletedAt: new Date(), deletedBy: userId },
         });
+
+        if (deleted.count === 0) {
+            return { ok: false, error: "Recurrente no encontrado o sin permisos" };
+        }
 
         await prisma.auditLog.create({
             data: {
