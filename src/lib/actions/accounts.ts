@@ -42,7 +42,16 @@ export async function listarCuentas() {
             orderBy: { createdAt: "asc" },
         });
 
-        return { cuentas };
+        return {
+            cuentas: cuentas.map((c: any) => ({
+                ...c,
+                initialBalance: Number(c.initialBalance),
+                currentBalance: Number(c.currentBalance),
+                createdAt: c.createdAt.toISOString(),
+                updatedAt: c.updatedAt.toISOString(),
+                deletedAt: c.deletedAt?.toISOString() || null,
+            })),
+        };
     } catch (error) {
         return { error: "Error al obtener cuentas", cuentas: [] };
     }
