@@ -2,7 +2,7 @@
 
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Send, Bot, Loader2, Sparkles, Plus, CheckCircle2, Copy } from "lucide-react";
+import { Send, Bot, Loader2, Sparkles, Plus, CheckCircle2, Copy, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
@@ -129,6 +129,29 @@ function TransactionCard({ card }: { card: SummaryCard }) {
                     <Copy className="h-3.5 w-3.5" />
                     {copied && <span className="ml-1 text-xs text-emerald-400">Copiado</span>}
                 </button>
+            </div>
+        </div>
+    );
+}
+
+const SECURITY_BLOCK_MARKER = "Solo puedo ayudarte con tus finanzas en Billeto";
+
+function isSecurityBlockedMessage(text: string): boolean {
+    return text.includes(SECURITY_BLOCK_MARKER);
+}
+
+function SecurityAlertCard() {
+    return (
+        <div className="my-2 overflow-hidden rounded-xl border border-amber-500/30 bg-amber-950/20">
+            <div className="space-y-2 px-4 py-3 text-sm">
+                <div className="flex items-center gap-2 font-medium text-amber-400">
+                    <ShieldAlert className="h-4 w-4" />
+                    Por motivos de seguridad
+                </div>
+                <p className="text-zinc-400 text-xs leading-relaxed">
+                    Este tipo de solicitud ha sido bloqueada por nuestro sistema de seguridad.
+                    Solo puedo ayudarte con tus finanzas en Billeto: registrar gastos, consultar balances y analizar tus movimientos.
+                </p>
             </div>
         </div>
     );
@@ -276,6 +299,9 @@ export default function AIAssistantPage() {
                                         return parts.map((p, idx) => {
                                             if (p.type === "text" && p.text?.trim()) {
                                                 if (hasSuccessCard) return null;
+                                                if (isSecurityBlockedMessage(p.text)) {
+                                                    return <SecurityAlertCard key={idx} />;
+                                                }
                                                 return (
                                                     <div key={idx} className="whitespace-pre-wrap">
                                                         {p.text}

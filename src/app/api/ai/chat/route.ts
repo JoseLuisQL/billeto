@@ -7,6 +7,12 @@ import { aplicarReglas } from "@/lib/actions/rules";
 import { checkApiRateLimit } from "@/lib/security/api-rate-limit";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import {
+  analyzePrompt,
+  SECURITY_PREAMBLE,
+  BLOCKED_RESPONSE_TEXT,
+  SUSPICIOUS_REINFORCEMENT,
+} from "@/lib/security/prompt-guard";
+import {
   SYSTEM_CATEGORY_OWNER_ID,
   ensureDefaultCategoriesForWorkspace,
   normalizeCategoryName,
@@ -196,6 +202,35 @@ export async function POST(req: Request) {
     }
     const { simpleGreeting, supportIntent } = classifyUserIntent(lastUserText);
 
+    // --- Prompt Injection Defense ---
+    const promptAnalysis = analyzePrompt(lastUserText);
+
+    if (promptAnalysis.blocked) {
+      console.warn("prompt-guard:blocked", {
+        userId,
+        workspaceId,
+        inputPreview: lastUserText.slice(0, 80),
+      });
+
+      const blockedResult = streamText({
+        model: google("gemini-2.0-flash"),
+        system: `Responde UNICAMENTE con el siguiente texto exacto, sin modificar nada, sin agregar nada antes ni despues:\n\n${BLOCKED_RESPONSE_TEXT}`,
+        messages: [{ role: "user" as const, content: "." }],
+      });
+
+      return blockedResult.toUIMessageStreamResponse({
+        headers: { "X-Billeto-Security-Block": "1" },
+      });
+    }
+
+    if (promptAnalysis.riskLevel === "suspicious") {
+      console.warn("prompt-guard:suspicious", {
+        userId,
+        workspaceId,
+        inputPreview: lastUserText.slice(0, 80),
+      });
+    }
+
     const currentDate = new Date().toLocaleDateString("es-PE", {
       timeZone: workspaceTimezone,
       weekday: "long",
@@ -206,7 +241,7 @@ export async function POST(req: Request) {
 
     const guardTool = makeToolGuard();
 
-    const systemPrompt = `Eres Billeto, asistente financiero profesional.
+    const systemPrompt = `${SECURITY_PREAMBLE}Eres Billeto, asistente financiero profesional.
 Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
 
 Estilo de respuesta:
@@ -230,6 +265,7 @@ Reglas generales:
 Contexto de intención detectada:
 - Saludo simple: ${simpleGreeting ? "sí" : "no"}
 - Soporte: ${supportIntent ? "sí" : "no"}
+${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
 `;
 
     const result = streamText({
