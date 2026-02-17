@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { RefreshCw, Plus, Trash2, Pencil, Play, Pause } from "lucide-react";
 import {
     listarRecurrentes,
@@ -199,10 +198,8 @@ export default function RecurringPage() {
     if (status === "loading") return null;
 
     return (
-        <div className="flex min-h-screen bg-zinc-950">
-            <DashboardSidebar user={{ id: "", name: "Usuario", email: "" }} />
-            <main className="flex-1 ml-64 p-8">
-                <div className="max-w-5xl mx-auto">
+        <main className="p-6 lg:p-8">
+            <div className="max-w-5xl mx-auto">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8">
                         <div>
@@ -342,10 +339,9 @@ export default function RecurringPage() {
                         )}
                     </div>
                 </div>
-            </main>
 
-            {/* Modal */}
-            {modalAbierto && (
+                {/* Modal */}
+                {modalAbierto && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <form
                         onSubmit={handleSubmit}
@@ -474,7 +470,7 @@ export default function RecurringPage() {
                         </div>
                     </form>
                 </div>
-            )}
-        </div>
+                )}
+        </main>
     );
 }

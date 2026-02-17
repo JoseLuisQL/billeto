@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { Zap, Plus, Trash2, Pencil } from "lucide-react";
 import {
     listarReglas,
@@ -167,10 +166,8 @@ export default function RulesPage() {
     if (status === "loading") return null;
 
     return (
-        <div className="flex min-h-screen bg-zinc-950">
-            <DashboardSidebar user={{ id: "", name: "Usuario", email: "" }} />
-            <main className="flex-1 ml-64 p-8">
-                <div className="max-w-5xl mx-auto">
+        <main className="p-6 lg:p-8">
+            <div className="max-w-5xl mx-auto">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8">
                         <div>
@@ -275,10 +272,9 @@ export default function RulesPage() {
                         )}
                     </div>
                 </div>
-            </main>
 
-            {/* Modal */}
-            {modalAbierto && (
+                {/* Modal */}
+                {modalAbierto && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <form
                         onSubmit={handleSubmit}
@@ -380,7 +376,7 @@ export default function RulesPage() {
                         </div>
                     </form>
                 </div>
-            )}
-        </div>
+                )}
+        </main>
     );
 }

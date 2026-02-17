@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import {
     Wallet,
     TrendingUp,
@@ -76,7 +75,11 @@ export default function DashboardPage() {
         return null;
     }
 
-    const user = session!.user;
+    if (!session?.user) {
+        return null;
+    }
+
+    const user = session.user;
     const moneda = resumen?.moneda || "PEN";
 
     const formatearMoneda = (monto: number) => {
@@ -118,18 +121,15 @@ export default function DashboardPage() {
     ];
 
     return (
-        <div className="flex min-h-screen">
-            <DashboardSidebar user={user} />
-            <main className="flex-1 ml-64 p-6">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-2xl font-bold text-white">
-                        Hola, {user.name?.split(" ")[0]} 👋
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        Acá tenés un resumen de tus finanzas
-                    </p>
-                </div>
+        <main className="p-6 lg:p-8">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-white">
+                    Hola, {user.name?.split(" ")[0]} 👋
+                </h1>
+                <p className="text-muted-foreground text-sm mt-1">
+                    Acá tenés un resumen de tus finanzas
+                </p>
+            </div>
 
                 {/* Tarjetas de resumen */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -213,43 +213,41 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Transacciones recientes */}
-                <div className="mt-6 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
-                    <h3 className="text-sm font-medium text-white mb-4">Transacciones recientes</h3>
-                    {cargando ? (
-                        <div className="space-y-2">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="h-10 rounded-lg bg-zinc-800/50 animate-pulse" />
-                            ))}
-                        </div>
-                    ) : (resumen?.ultimasTransacciones?.length ?? 0) === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground text-sm">
-                            <p>No hay transacciones aún.</p>
-                            <p className="mt-1">Registrá tu primer gasto para empezar.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-1">
-                            {resumen?.ultimasTransacciones?.map((tx) => (
-                                <div key={tx.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-zinc-800/30">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg">{tx.category?.icon || "📋"}</span>
-                                        <div>
-                                            <p className="text-sm text-white">{tx.description}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {tx.account} • {new Date(tx.date).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}
-                                            </p>
-                                        </div>
+            <div className="mt-6 rounded-xl border border-white/10 bg-zinc-900/50 p-6">
+                <h3 className="text-sm font-medium text-white mb-4">Transacciones recientes</h3>
+                {cargando ? (
+                    <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-10 rounded-lg bg-zinc-800/50 animate-pulse" />
+                        ))}
+                    </div>
+                ) : (resumen?.ultimasTransacciones?.length ?? 0) === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-sm">
+                        <p>No hay transacciones aún.</p>
+                        <p className="mt-1">Registrá tu primer gasto para empezar.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        {resumen?.ultimasTransacciones?.map((tx) => (
+                            <div key={tx.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-zinc-800/30">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-lg">{tx.category?.icon || "📋"}</span>
+                                    <div>
+                                        <p className="text-sm text-white">{tx.description}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {tx.account} • {new Date(tx.date).toLocaleDateString("es-PE", { day: "2-digit", month: "short" })}
+                                        </p>
                                     </div>
-                                    <span className={`text-sm font-medium ${tx.type === "income" ? "text-emerald-400" : "text-rose-400"
-                                        }`}>
-                                        {tx.type === "income" ? "+" : "-"}{formatearMoneda(tx.amount)}
-                                    </span>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </main>
-        </div>
+                                <span className={`text-sm font-medium ${tx.type === "income" ? "text-emerald-400" : "text-rose-400"
+                                    }`}>
+                                    {tx.type === "income" ? "+" : "-"}{formatearMoneda(tx.amount)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </main>
     );
 }

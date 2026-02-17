@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +39,7 @@ type TransactionItem = {
 type SelectItem = { id: string; name: string; currency?: string; icon?: string };
 
 export default function TransactionsPage() {
-    const { data: session, status } = useSession();
+    const { status } = useSession();
     const router = useRouter();
     const { toast } = useToast();
 
@@ -142,11 +141,8 @@ export default function TransactionsPage() {
     }
 
     return (
-        <div className="flex min-h-screen">
-            <DashboardSidebar user={session!.user} />
-            <main className="flex-1 ml-64 p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+        <main className="p-6 lg:p-8">
+            <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-white">Transacciones</h1>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -407,7 +403,6 @@ export default function TransactionsPage() {
                         </Card>
                     </div>
                 )}
-            </main>
-        </div>
+        </main>
     );
 }

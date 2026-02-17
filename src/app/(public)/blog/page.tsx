@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowRight, Calendar } from "lucide-react";
 
 /**

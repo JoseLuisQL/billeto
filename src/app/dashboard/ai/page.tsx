@@ -2,7 +2,6 @@
 
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
-import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { Send, Bot, User, Loader2, Sparkles, RotateCcw } from "lucide-react";
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useToast } from "@/components/ui/toast";
@@ -79,9 +78,7 @@ export default function AIAssistantPage() {
     };
 
     return (
-        <div className="flex min-h-screen bg-zinc-950">
-            <DashboardSidebar user={{ id: "", name: "Usuario", email: "" }} />
-            <main className="flex-1 ml-64 flex flex-col h-screen">
+        <main className="flex h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/40">
                 {/* Header */}
                 <div className="border-b border-white/10 bg-zinc-900/50 backdrop-blur-sm px-8 py-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-lime-400 to-emerald-500 flex items-center justify-center">
@@ -238,7 +235,6 @@ export default function AIAssistantPage() {
                         Billeto puede cometer errores. Verificá las transacciones creadas.
                     </p>
                 </div>
-            </main>
-        </div>
+        </main>
     );
 }

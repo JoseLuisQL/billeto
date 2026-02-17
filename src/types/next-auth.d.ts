@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import type { DefaultSession } from "next-auth";
 
 /**
  * Extensión de tipos de NextAuth para incluir el ID del usuario
@@ -7,11 +7,8 @@ import NextAuth from "next-auth";
  */
 declare module "next-auth" {
     interface Session {
-        user: {
+        user: DefaultSession["user"] & {
             id: string;
-            name?: string | null;
-            email?: string | null;
-            image?: string | null;
         };
     }
 }
