@@ -168,8 +168,8 @@ export function BalanceTrendChart({ moneda, from, to }: BalanceTrendChartProps) 
             }}
             labelStyle={{ color: "#f4f4f5" }}
             itemStyle={{ color: "#f4f4f5" }}
-            formatter={(value: number | undefined) => [
-              new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda || "PEN" }).format(value ?? 0),
+            formatter={(value) => [
+              new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda || "PEN" }).format(Number(value) || 0),
               metricLabel[metric],
             ]}
           />

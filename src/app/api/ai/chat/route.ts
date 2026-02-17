@@ -93,16 +93,27 @@ function resolveCategoryByKeywords(
   const text = normalizeFreeText(description);
 
   const keywordGroups: Array<{ keywords: string[]; preferredCategory: string[] }> = [
-    { keywords: ["cafe", "cafeteria", "almuerzo", "desayuno", "cena", "restaurante", "menu", "comida"], preferredCategory: ["comida", "supermercado"] },
+    { keywords: ["cafe", "cafeteria", "almuerzo", "desayuno", "cena", "restaurante", "menu", "comida", "helado", "pizza", "pollo", "hamburguesa", "sushi", "snack", "lunch", "brunch", "parrilla", "ceviche", "chifa", "polleria"], preferredCategory: ["comida", "supermercado"] },
     { keywords: ["uber", "taxi", "bus", "pasaje", "movilidad", "metro", "combustible", "gasolina", "peaje", "estacionamiento"], preferredCategory: ["transporte", "combustible", "estacionamiento", "auto"] },
     { keywords: ["internet", "wifi", "fibra", "movistar", "claro", "entel"], preferredCategory: ["internet", "servicios"] },
-    { keywords: ["netflix", "spotify", "youtube", "disney", "prime", "stream"], preferredCategory: ["streaming", "musica", "entretenimiento", "subscripciones"] },
-    { keywords: ["botica", "farmacia", "medicina", "medico", "doctor", "clinica"], preferredCategory: ["farmacia", "salud"] },
-    { keywords: ["colegio", "universidad", "curso", "matricula", "educacion"], preferredCategory: ["educacion"] },
-    { keywords: ["alquiler", "hipoteca", "casa", "departamento", "vivienda"], preferredCategory: ["vivienda"] },
-    { keywords: ["gimnasio", "gym", "crossfit"], preferredCategory: ["gimnasio", "deportes"] },
+    { keywords: ["netflix", "spotify", "youtube", "disney", "prime", "stream", "hbo", "apple tv", "crunchyroll"], preferredCategory: ["streaming", "musica", "entretenimiento", "subscripciones"] },
+    { keywords: ["botica", "farmacia", "medicina", "medico", "doctor", "clinica", "consulta", "examen", "laboratorio", "lentes", "dentista", "hospital"], preferredCategory: ["farmacia", "salud"] },
+    { keywords: ["colegio", "universidad", "curso", "matricula", "educacion", "libro", "taller", "capacitacion", "diplomado", "maestria"], preferredCategory: ["educacion"] },
+    { keywords: ["alquiler", "hipoteca", "casa", "departamento", "vivienda", "renta"], preferredCategory: ["vivienda"] },
+    { keywords: ["gimnasio", "gym", "crossfit", "yoga", "pilates"], preferredCategory: ["gimnasio", "deportes"] },
     { keywords: ["seguro", "poliza", "soat"], preferredCategory: ["seguros"] },
     { keywords: ["tarjeta", "visa", "mastercard", "credito"], preferredCategory: ["tarjetas", "finanzas"] },
+    { keywords: ["trabajo", "sueldo", "salario", "freelance", "honorarios", "bono", "comision", "nomina", "quincena", "mensualidad", "pago de trabajo", "ingreso de trabajo", "ingreso del trabajo"], preferredCategory: ["trabajo", "emprendimiento"] },
+    { keywords: ["cine", "teatro", "concierto", "fiesta", "bar", "discoteca", "karaoke", "juego", "videojuego"], preferredCategory: ["entretenimiento"] },
+    { keywords: ["ropa", "zapatos", "zapatillas", "pantalon", "camisa", "polo", "jean", "vestido", "casaca", "chaqueta"], preferredCategory: ["ropa"] },
+    { keywords: ["supermercado", "mercado", "plaza vea", "wong", "tottus", "vivanda", "bodega", "minimarket"], preferredCategory: ["supermercado"] },
+    { keywords: ["luz", "agua", "gas", "recibo", "electricidad", "sedapal"], preferredCategory: ["servicios"] },
+    { keywords: ["regalo", "obsequio", "presente", "cumpleanos", "navidad"], preferredCategory: ["regalos"] },
+    { keywords: ["mascota", "perro", "gato", "veterinario", "veterinaria", "comida de perro", "comida de gato"], preferredCategory: ["mascotas"] },
+    { keywords: ["inversion", "acciones", "bonos", "fondo", "cripto", "bitcoin", "dividendo", "rendimiento"], preferredCategory: ["inversiones", "finanzas"] },
+    { keywords: ["ahorro", "ahorros", "guardado", "reserva"], preferredCategory: ["ahorros"] },
+    { keywords: ["donacion", "caridad", "ong", "fundacion"], preferredCategory: ["donaciones"] },
+    { keywords: ["delivery", "rappi", "pedidos ya", "glovo", "uber eats", "envio"], preferredCategory: ["delivery", "comida"] },
   ];
 
   for (const group of keywordGroups) {
@@ -241,6 +252,21 @@ export async function POST(req: Request) {
 
     const guardTool = makeToolGuard();
 
+    const visibleCategories = await prisma.category.findMany({
+      where: {
+        workspaceId,
+        deletedAt: null,
+        OR: [
+          { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+          { ownerUserId: userId },
+        ],
+      },
+      select: { id: true, name: true, normalizedName: true, type: true },
+    });
+
+    const expenseCategories = visibleCategories.filter((c) => c.type === "expense" || c.type === "both").map((c) => c.name);
+    const incomeCategories = visibleCategories.filter((c) => c.type === "income" || c.type === "both").map((c) => c.name);
+
     const systemPrompt = `${SECURITY_PREAMBLE}Eres Billeto, asistente financiero profesional.
 Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
 
@@ -248,11 +274,27 @@ Estilo de respuesta:
 - Profesional, conciso, sin emojis innecesarios.
 - Usa viñetas cuando sea útil (2-4 líneas max).
 
+Categorías disponibles para GASTOS: ${expenseCategories.join(", ")}.
+Categorías disponibles para INGRESOS: ${incomeCategories.join(", ")}.
+
 Reglas para registrar gastos/ingresos:
 1) Cuando el usuario menciona un gasto o ingreso con monto y descripción, REGISTRALO INMEDIATAMENTE usando transactions_create. NO preguntes confirmación.
-2) Infiere automáticamente: tipo (expense por defecto si dice "gasté/compré/pagué"), descripción del texto, y category_name basada en el contexto (ej: "helado" → "Comida", "uber" → "Transporte", "netflix" → "Entretenimiento").
-3) Si no se menciona cuenta, NO preguntes. El sistema asignará la cuenta por defecto automáticamente.
-4) Si no se menciona categoría, NO preguntes. Infiere la categoría más lógica del contexto o el sistema la asignará.
+2) SIEMPRE envía category_name con el nombre EXACTO de una categoría de las listas de arriba. Infiere la categoría más lógica según el contexto:
+   - "trabajo", "sueldo", "salario", "freelance", "honorarios" → category_name: "Trabajo"
+   - "cena", "almuerzo", "desayuno", "comida", "restaurante", "helado", "pizza" → category_name: "Comida"
+   - "uber", "taxi", "bus", "pasaje", "metro" → category_name: "Transporte"
+   - "netflix", "spotify", "youtube", "disney" → category_name: "Streaming"
+   - "gasolina", "combustible", "grifo" → category_name: "Combustible"
+   - "farmacia", "medicina", "doctor" → category_name: "Farmacia"
+   - "curso", "universidad", "libro", "capacitacion" → category_name: "Educación"
+   - "ropa", "zapatos", "zapatillas" → category_name: "Ropa"
+   - "cine", "fiesta", "bar", "concierto" → category_name: "Entretenimiento"
+   - "supermercado", "mercado", "plaza vea", "metro", "wong" → category_name: "Supermercado"
+   - "alquiler", "casa", "departamento" → category_name: "Vivienda"
+   - "gimnasio", "gym" → category_name: "Gimnasio"
+   - "luz", "agua", "gas" → category_name: "Servicios"
+3) Infiere el tipo: "income" si dice "ingreso/cobré/gané/sueldo/trabajo", "expense" si dice "gasté/compré/pagué".
+4) Si no se menciona cuenta, NO preguntes. El sistema registrará sin cuenta.
 5) SOLO pregunta si falta el MONTO (dato realmente crítico). Descripción se puede inferir del contexto.
 6) Después de registrar una transacción exitosamente, NO escribas texto adicional. La tarjeta de confirmación ya muestra toda la información al usuario. Solo responde con texto si hubo un error o necesitas aclarar algo.
 
@@ -311,7 +353,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                         id: existing.id,
                         description: existing.description,
                         amount: existing.amountBase,
-                        accountName: existing.account.name,
+                        accountName: existing.account?.name || "Sin cuenta específica",
                         categoryName: existing.category?.name || "Sin categoría",
                       },
                       deduplicated: true,
@@ -319,39 +361,28 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   }
                 }
 
-                let finalAccountId = args.account_id;
+                let finalAccountId: string | null = args.account_id || null;
                 const accounts = await prisma.account.findMany({
                   where: { workspaceId, deletedAt: null },
                   orderBy: { name: "asc" },
                   select: { id: true, name: true, normalizedName: true },
                 });
 
-                if (accounts.length === 0) {
-                  return toToolError("account_not_found", "No hay cuentas registradas en el workspace.");
-                }
-
                 if (finalAccountId) {
                   const accountExists = accounts.some((account) => account.id === finalAccountId);
                   if (!accountExists) {
-                    finalAccountId = undefined;
+                    finalAccountId = null;
                   }
                 }
 
-                if (!finalAccountId && args.account_name?.trim()) {
+                if (!finalAccountId && args.account_name?.trim() && accounts.length > 0) {
                   const resolvedAccount = resolveAccountByName(args.account_name, accounts);
-                  if (!resolvedAccount || resolvedAccount.confidence < 0.75) {
-                    return {
-                      success: false,
-                      needs_confirmation: true,
-                      field: "account_name",
-                      message: `No pude identificar con precisión la cuenta "${args.account_name}". ¿Con qué cuenta lo registro?`,
-                      options: accounts.slice(0, 5).map((a) => a.name),
-                    };
+                  if (resolvedAccount && resolvedAccount.confidence >= 0.75) {
+                    finalAccountId = resolvedAccount.id;
                   }
-                  finalAccountId = resolvedAccount.id;
                 }
 
-                if (!finalAccountId) {
+                if (!finalAccountId && accounts.length > 0) {
                   const cashAccount = accounts.find(
                     (a) =>
                       a.normalizedName === "efectivo" ||
@@ -364,18 +395,6 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
 
                 const amountNum = Number(args.amount);
                 const increment = args.type === "income" ? amountNum : -amountNum;
-
-                const visibleCategories = await prisma.category.findMany({
-                  where: {
-                    workspaceId,
-                    deletedAt: null,
-                    OR: [
-                      { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
-                      { ownerUserId: userId },
-                    ],
-                  },
-                  select: { id: true, name: true, normalizedName: true, type: true },
-                });
 
                 let finalCategoryId = args.category_id;
                 if (finalCategoryId) {
@@ -431,13 +450,15 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                 }
 
                 const tx = await prisma.$transaction(async (db) => {
-                  const updatedAccount = await db.account.updateMany({
-                    where: { id: finalAccountId as string, workspaceId, deletedAt: null },
-                    data: { currentBalance: { increment } },
-                  });
+                  if (finalAccountId) {
+                    const updatedAccount = await db.account.updateMany({
+                      where: { id: finalAccountId, workspaceId, deletedAt: null },
+                      data: { currentBalance: { increment } },
+                    });
 
-                  if (updatedAccount.count === 0) {
-                    throw new Error("Cuenta no encontrada o sin permisos");
+                    if (updatedAccount.count === 0) {
+                      throw new Error("Cuenta no encontrada o sin permisos");
+                    }
                   }
 
                   return db.transaction.create({
@@ -450,7 +471,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                       type: args.type,
                       date: args.date ? new Date(args.date) : new Date(),
                       categoryId: finalCategoryId,
-                      accountId: finalAccountId as string,
+                      accountId: finalAccountId ?? undefined,
                       workspaceId,
                       requestId: args.request_id,
                     },
@@ -458,17 +479,17 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   });
                 });
 
-                const selectedAccount = accounts.find((a) => a.id === finalAccountId);
+                const selectedAccount = finalAccountId ? accounts.find((a) => a.id === finalAccountId) : null;
 
                 return {
                   success: true,
-                  message: "✅ Transacción registrada",
+                  message: "Transaccion registrada",
                   transaction: {
                     id: tx.id,
                     description: tx.description,
                     amount: tx.amountBase,
                     currency: "PEN",
-                    accountName: tx.account.name,
+                    accountName: tx.account?.name || "Sin cuenta específica",
                     categoryName: tx.category?.name || "Otros",
                     date: formatDateForWorkspace(tx.date, workspaceTimezone),
                     type: tx.type,
@@ -479,12 +500,14 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     amount: `S/${Number(tx.amountBase).toFixed(2)} PEN`,
                     description: tx.description,
                     category: tx.category?.name || "Otros",
-                    account: tx.account.name,
+                    account: tx.account?.name || "Sin cuenta específica",
                     date: formatDateForWorkspace(tx.date, workspaceTimezone),
                     transactionType: tx.type === "income" ? "Ingreso" : "Gasto",
-                    accountDecision: args.account_name?.trim()
-                      ? `Cuenta interpretada: ${selectedAccount?.name || tx.account.name}`
-                      : `Cuenta por defecto: ${selectedAccount?.name || tx.account.name}`,
+                    accountDecision: finalAccountId
+                      ? (args.account_name?.trim()
+                        ? `Cuenta interpretada: ${selectedAccount?.name || tx.account?.name}`
+                        : `Cuenta por defecto: ${selectedAccount?.name || tx.account?.name}`)
+                      : "Sin cuenta específica",
                   },
                 };
               })(), TOOL_TIMEOUT_MS, "Timeout al crear la transacción");

@@ -96,11 +96,11 @@ export async function crearTransaccion(formData: FormData) {
             windowMs: 60_000,
         });
 
-        const accountId = formData.get("accountId") as string;
+        const accountId = (formData.get("accountId") as string) || null;
         let categoryId = (formData.get("categoryId") as string) || null;
         const description = formData.get("description") as string;
 
-        // Auto-categorización: si no se especificó categoría, aplicar reglas
+        // Auto-categorizacion: si no se especifico categoria, aplicar reglas
         if (!categoryId && description) {
             const catAutoId = await aplicarReglas(description, userId);
             if (catAutoId) categoryId = catAutoId;
@@ -111,16 +111,17 @@ export async function crearTransaccion(formData: FormData) {
         const date = dateStr ? new Date(dateStr) : new Date();
 
         // Validaciones
-        if (!accountId) return { error: "Seleccioná una cuenta." };
         if (!description || description.trim().length === 0) return { error: "La descripción es obligatoria." };
         if (isNaN(amount) || amount <= 0) return { error: "El monto debe ser mayor a 0." };
 
-        // Verificar que la cuenta pertenece al workspace
-        const cuenta = await prisma.account.findFirst({
-            where: { id: accountId, workspaceId: workspace.id, deletedAt: null },
-        });
-
-        if (!cuenta) return { error: "Cuenta no encontrada." };
+        let cuenta: { id: string; currency: string } | null = null;
+        if (accountId) {
+            cuenta = await prisma.account.findFirst({
+                where: { id: accountId, workspaceId: workspace.id, deletedAt: null },
+                select: { id: true, currency: true },
+            });
+            if (!cuenta) return { error: "Cuenta no encontrada." };
+        }
 
         if (categoryId) {
             const categoria = await prisma.category.findFirst({
@@ -142,20 +143,20 @@ export async function crearTransaccion(formData: FormData) {
         }
 
         // Calcular el cambio de balance
-        // expense → resta, income → suma
+        // expense -> resta, income -> suma
         const cambioBalance = type === "income" ? amount : -amount;
 
-        // Crear transacción y actualizar balance en una transacción atómica
+        // Crear transaccion y actualizar balance en una transaccion atomica
         const resultado = await prisma.$transaction(async (tx: TxClient) => {
-            // 1. Crear la transacción
+            // 1. Crear la transaccion
             const transaccion = await tx.transaction.create({
                 data: {
                     workspaceId: workspace.id,
-                    accountId,
+                    accountId: accountId ?? undefined,
                     categoryId,
                     amountOriginal: amount,
-                    currencyOriginal: cuenta.currency,
-                    amountBase: amount, // Misma moneda por ahora (multi-moneda posterior)
+                    currencyOriginal: cuenta?.currency || workspace.baseCurrency,
+                    amountBase: amount,
                     baseCurrency: workspace.baseCurrency,
                     description: description.trim(),
                     type,
@@ -164,17 +165,19 @@ export async function crearTransaccion(formData: FormData) {
                 },
             });
 
-            // 2. Actualizar balance de la cuenta
-            await tx.account.update({
-                where: { id: accountId },
-                data: {
-                    currentBalance: {
-                        increment: cambioBalance,
+            // 2. Actualizar balance de la cuenta (solo si tiene cuenta asignada)
+            if (accountId && cuenta) {
+                await tx.account.update({
+                    where: { id: accountId },
+                    data: {
+                        currentBalance: {
+                            increment: cambioBalance,
+                        },
                     },
-                },
-            });
+                });
+            }
 
-            // 3. Auditoría
+            // 3. Auditoria
             await tx.auditLog.create({
                 data: {
                     workspaceId: workspace.id,
@@ -226,7 +229,7 @@ export async function eliminarTransaccion(id: string) {
             : Number(transaccion.amountOriginal);
 
         await prisma.$transaction(async (tx: TxClient) => {
-            // 1. Soft delete de la transacción
+            // 1. Soft delete de la transaccion
             const deleted = await tx.transaction.updateMany({
                 where: { id, workspaceId: workspace.id, deletedAt: null },
                 data: { deletedAt: new Date(), deletedBy: userId },
@@ -236,13 +239,15 @@ export async function eliminarTransaccion(id: string) {
                 throw new Error("Transacción no encontrada o sin permisos");
             }
 
-            // 2. Revertir balance
-            await tx.account.update({
-                where: { id: transaccion.accountId },
-                data: {
-                    currentBalance: { increment: reversion },
-                },
-            });
+            // 2. Revertir balance (solo si tiene cuenta asignada)
+            if (transaccion.accountId) {
+                await tx.account.update({
+                    where: { id: transaccion.accountId },
+                    data: {
+                        currentBalance: { increment: reversion },
+                    },
+                });
+            }
 
             // 3. Auditoría
             await tx.auditLog.create({

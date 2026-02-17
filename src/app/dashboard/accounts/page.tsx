@@ -70,7 +70,7 @@ export default function AccountsPage() {
             setCuentas((res.cuentas as AccountItem[]) || []);
         } catch (error) {
             console.error(error);
-            toast({ title: "Error", description: "No se pudieron cargar las cuentas", variant: "destructive" });
+            toast({ title: "Error", description: "No se pudieron cargar las cuentas", variant: "error" });
         } finally {
             setCargando(false);
         }
@@ -89,10 +89,10 @@ export default function AccountsPage() {
 
         const result = await crearCuenta(formData);
         if (result.error) {
-            toast({ title: "Error", description: result.error, variant: "destructive" });
+            toast({ title: "Error", description: result.error, variant: "error" });
         } else {
             setModal(false);
-            toast({ title: "Éxito", description: "Cuenta creada correctamente.", className: "bg-[#09090b] border-zinc-800 text-white" });
+            toast({ title: "Exito", description: "Cuenta creada correctamente.", variant: "success" });
             cargarCuentas();
         }
     };
@@ -101,9 +101,9 @@ export default function AccountsPage() {
         if (!confirm("¿Seguro que deseas eliminar esta cuenta? Se perderán las transacciones asociadas.")) return;
         const result = await eliminarCuenta(id);
         if (result.error) {
-            toast({ title: "Error", description: result.error, variant: "destructive" });
+            toast({ title: "Error", description: result.error, variant: "error" });
         } else {
-            toast({ title: "Eliminada", description: "Cuenta eliminada correctamente.", className: "bg-[#09090b] border-zinc-800 text-white" });
+            toast({ title: "Eliminada", description: "Cuenta eliminada correctamente.", variant: "success" });
             cargarCuentas(); // Reload list
         }
     };

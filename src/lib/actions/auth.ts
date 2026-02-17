@@ -86,23 +86,10 @@ export async function registrarUsuario(formData: FormData) {
                 },
             });
 
-            // 4. Crear categorías predeterminadas del sistema
+            // 4. Crear categorias predeterminadas del sistema
             await ensureDefaultCategoriesForWorkspace(tx, workspace.id);
 
-            // 5. Crear cuenta de efectivo por defecto
-            await tx.account.create({
-                data: {
-                    workspaceId: workspace.id,
-                    name: "Efectivo",
-                    normalizedName: "efectivo",
-                    type: "cash",
-                    currency: "PEN",
-                    initialBalance: 0,
-                    currentBalance: 0,
-                },
-            });
-
-            // 6. Crear suscripción Free por defecto
+            // 5. Crear suscripcion Free por defecto
             await tx.subscription.create({
                 data: {
                     workspaceId: workspace.id,
@@ -111,7 +98,7 @@ export async function registrarUsuario(formData: FormData) {
                 },
             });
 
-            // 7. Registrar en auditoría
+            // 6. Registrar en auditoria
             await tx.auditLog.create({
                 data: {
                     workspaceId: workspace.id,

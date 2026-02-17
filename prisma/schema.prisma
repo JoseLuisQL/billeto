@@ -157,7 +157,7 @@ model Category {
 model Transaction {
   id               String       @id @default(cuid())
   workspaceId      String       @map("workspace_id")
-  accountId        String       @map("account_id")
+  accountId        String?      @map("account_id")
   categoryId       String?      @map("category_id")
   amountOriginal   Decimal      @map("amount_original") @db.Decimal(15, 2)
   currencyOriginal String       @map("currency_original")
@@ -175,7 +175,7 @@ model Transaction {
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
   attachments      Attachment[]
-  account          Account      @relation(fields: [accountId], references: [id])
+  account          Account?     @relation(fields: [accountId], references: [id])
   category         Category?    @relation(fields: [categoryId], references: [id])
   fxRate           FXRate?      @relation(fields: [fxRateId], references: [id])
   workspace        Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

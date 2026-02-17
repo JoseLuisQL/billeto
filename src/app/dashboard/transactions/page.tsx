@@ -139,7 +139,7 @@ export default function TransactionsPage() {
             setTopCategoria(topCat);
         } catch (err) {
             console.error("Error loading data", err);
-            toast({ title: "Error", description: "No se pudieron cargar los datos", variant: "destructive" });
+            toast({ title: "Error", description: "No se pudieron cargar los datos", variant: "error" });
         } finally {
             setCargando(false);
         }
@@ -161,14 +161,14 @@ export default function TransactionsPage() {
         const result = await crearTransaccion(formData);
         if (result.error) {
             setError(result.error);
-            toast({ title: "Error", description: result.error, variant: "destructive" });
+            toast({ title: "Error", description: result.error, variant: "error" });
         } else {
             setModal(false);
             setPage(1);
             toast({
-                title: "Transacción guardada",
+                title: "Transaccion guardada",
                 description: "Se ha registrado el movimiento correctamente.",
-                className: "bg-[#09090b] border-zinc-800 text-white"
+                variant: "success"
             });
             cargarDatos();
         }
@@ -178,9 +178,9 @@ export default function TransactionsPage() {
         if (!confirm("¿Eliminar esta transacción?")) return;
         const result = await eliminarTransaccion(id);
         if (result.error) {
-            toast({ title: "Error", description: result.error, variant: "destructive" });
+            toast({ title: "Error", description: result.error, variant: "error" });
         } else {
-            toast({ title: "Eliminado", description: "Transacción eliminada.", className: "bg-[#09090b] border-zinc-800 text-white" });
+            toast({ title: "Eliminado", description: "Transaccion eliminada.", variant: "success" });
             cargarDatos();
         }
     };
@@ -685,10 +685,9 @@ export default function TransactionsPage() {
                                         <Label className="text-xs text-zinc-400 font-medium text-right">Cuenta</Label>
                                         <select
                                             name="accountId"
-                                            required
                                             className="w-full bg-[#27272a] border-transparent rounded-md py-2 px-3 text-sm text-zinc-400 focus:outline-none focus:ring-1 focus:ring-[#D3FF0A]/50 appearance-none"
                                         >
-                                            <option value="">Sin cuenta</option>
+                                            <option value="">Sin cuenta específica</option>
                                             {cuentas.map(c => (
                                                 <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                                             ))}

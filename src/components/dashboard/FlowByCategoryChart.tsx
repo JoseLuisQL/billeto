@@ -166,7 +166,7 @@ export function FlowByCategoryChart({ from, to }: { from?: string; to?: string }
               }}
               labelStyle={{ color: "#f4f4f5" }}
               itemStyle={{ color: "#f4f4f5" }}
-              formatter={(value: number | undefined) => [`${Math.round(value ?? 0)} ${moneda}`, "Monto"]}
+              formatter={(value) => [`${Math.round(Number(value) || 0)} ${moneda}`, "Monto"]}
             />
           </Sankey>
         </ResponsiveContainer>
