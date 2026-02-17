@@ -37,9 +37,11 @@ import {
     listarTransacciones,
     crearTransaccion,
     eliminarTransaccion,
+    obtenerResumenDashboard,
 } from "@/lib/actions/transactions";
 import { listarCuentas } from "@/lib/actions/accounts";
 import { listarCategorias } from "@/lib/actions/categories";
+import { obtenerDistribucionCategorias } from "@/lib/actions/charts";
 import { useToast } from "@/components/ui/toast";
 import {
     DropdownMenu,
@@ -80,6 +82,13 @@ export default function TransactionsPage() {
     const [cuentas, setCuentas] = useState<SelectItem[]>([]);
     const [categorias, setCategorias] = useState<SelectItem[]>([]);
     const [cargando, setCargando] = useState(true);
+    const [resumen, setResumen] = useState<{
+        balanceTotal: number;
+        ingresosMes: number;
+        gastosMes: number;
+        moneda: string;
+    }>({ balanceTotal: 0, ingresosMes: 0, gastosMes: 0, moneda: "PEN" });
+    const [topCategoria, setTopCategoria] = useState<{ name: string; value: number } | null>(null);
 
     // UI State
     const [modal, setModal] = useState(false);
@@ -102,7 +111,7 @@ export default function TransactionsPage() {
     const cargarDatos = async () => {
         setCargando(true);
         try {
-            const [txResult, cuentasResult, categoriasResult] = await Promise.all([
+            const [txResult, cuentasResult, categoriasResult, resumenResult, categoriasDistResult] = await Promise.all([
                 listarTransacciones({
                     page,
                     pageSize: settings.limit,
@@ -111,6 +120,8 @@ export default function TransactionsPage() {
                 }),
                 listarCuentas(),
                 listarCategorias(),
+                obtenerResumenDashboard(),
+                obtenerDistribucionCategorias({ type: "expense" }),
             ]);
 
             setTransacciones((txResult.transacciones as TransactionItem[]) || []);
@@ -118,6 +129,14 @@ export default function TransactionsPage() {
             setTotal(txResult.total);
             setCuentas((cuentasResult.cuentas as SelectItem[]) || []);
             setCategorias((categoriasResult.categorias as SelectItem[]) || []);
+            setResumen({
+                balanceTotal: resumenResult.balanceTotal,
+                ingresosMes: resumenResult.ingresosMes,
+                gastosMes: resumenResult.gastosMes,
+                moneda: resumenResult.moneda,
+            });
+            const topCat = categoriasDistResult.datos?.[0] ?? null;
+            setTopCategoria(topCat);
         } catch (err) {
             console.error("Error loading data", err);
             toast({ title: "Error", description: "No se pudieron cargar los datos", variant: "destructive" });
@@ -345,7 +364,7 @@ export default function TransactionsPage() {
                         </CardHeader>
                         <CardContent className="p-4 pt-1">
                             <div className="text-2xl font-bold text-[#D3FF0A]">
-                                70 <span className="text-sm font-normal text-zinc-500">PEN</span>
+                                {formatearMoneda(resumen.balanceTotal, resumen.moneda)}
                             </div>
                         </CardContent>
                     </Card>
@@ -357,7 +376,7 @@ export default function TransactionsPage() {
                         </CardHeader>
                         <CardContent className="p-4 pt-1">
                             <div className="text-2xl font-bold text-rose-500">
-                                -80 <span className="text-sm font-normal text-zinc-500">PEN</span>
+                                {formatearMoneda(-resumen.gastosMes, resumen.moneda)}
                             </div>
                         </CardContent>
                     </Card>
@@ -369,7 +388,7 @@ export default function TransactionsPage() {
                         </CardHeader>
                         <CardContent className="p-4 pt-1">
                             <div className="text-2xl font-bold text-emerald-500">
-                                150 <span className="text-sm font-normal text-zinc-500">PEN</span>
+                                {formatearMoneda(resumen.ingresosMes, resumen.moneda)}
                             </div>
                         </CardContent>
                     </Card>
@@ -377,16 +396,22 @@ export default function TransactionsPage() {
                     {/* Category Top */}
                     <Card className="bg-[#18181b] border-transparent hover:border-zinc-800 transition-colors">
                         <CardHeader className="p-4 pb-1">
-                            <span className="text-xs font-medium text-zinc-500">Categoría con más gastos</span>
+                            <span className="text-xs font-medium text-zinc-500">Categoria con mas gastos</span>
                         </CardHeader>
                         <CardContent className="p-4 pt-1 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                                🍽️
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-zinc-200">Comida</div>
-                                <div className="text-xs text-rose-500">-60 PEN</div>
-                            </div>
+                            {topCategoria ? (
+                                <>
+                                    <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                                        {topCategoria.name.split(" ")[0]}
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-zinc-200">{topCategoria.name.split(" ").slice(1).join(" ")}</div>
+                                        <div className="text-xs text-rose-500">{formatearMoneda(-topCategoria.value, resumen.moneda)}</div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-sm text-zinc-600">Sin datos</div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
