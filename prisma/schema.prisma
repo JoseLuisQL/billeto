@@ -135,6 +135,7 @@ model Account {
 model Category {
   id             String        @id @default(cuid())
   workspaceId    String        @map("workspace_id")
+  ownerUserId    String        @default("__SYSTEM__") @map("owner_user_id")
   name           String
   normalizedName String        @map("normalized_name")
   icon           String?
@@ -147,7 +148,8 @@ model Category {
   workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   transactions   Transaction[]
 
-  @@unique([workspaceId, normalizedName])
+  @@unique([workspaceId, normalizedName, ownerUserId])
+  @@index([workspaceId, ownerUserId])
   @@map("categories")
 }
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type InferSchema } from "xmcp";
 import { prisma } from "@/lib/prisma";
 import { aplicarReglas } from "@/lib/actions/rules";
+import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
 
 export const schema = {
     amount: z.number().positive().describe("Monto de la transacción"),
@@ -57,10 +58,26 @@ export default async function transactionsCreate(
     });
     if (!cuenta) return "❌ Cuenta no encontrada.";
 
-    // Auto-categorización si no se especificó categoría
     let categoryId = args.category_id || null;
+    if (categoryId) {
+        const categoria = await prisma.category.findFirst({
+            where: {
+                id: categoryId,
+                workspaceId,
+                deletedAt: null,
+                OR: [
+                    { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                    { ownerUserId: userId },
+                ],
+            },
+            select: { id: true },
+        });
+        if (!categoria) return "❌ Categoría no válida para este usuario.";
+    }
+
+    // Auto-categorización si no se especificó categoría
     if (!categoryId && args.description) {
-        const autoId = await aplicarReglas(args.description);
+        const autoId = await aplicarReglas(args.description, userId);
         if (autoId) categoryId = autoId;
     }
 

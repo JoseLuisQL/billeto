@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import { enforceRateLimit } from "@/lib/security/rate-limit";
+import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
 
 /**
  * Server Actions para el Rules Engine.
@@ -261,7 +262,7 @@ export async function eliminarRegla(id: string) {
  * Aplicar reglas de auto-categorización a una descripción.
  * Retorna el categoryId de la primera regla que coincida, o null.
  */
-export async function aplicarReglas(description: string): Promise<string | null> {
+export async function aplicarReglas(description: string, ownerUserId?: string): Promise<string | null> {
     try {
         const { workspace } = await obtenerWorkspace();
 
@@ -306,7 +307,24 @@ export async function aplicarReglas(description: string): Promise<string | null>
             }
 
             if (match && actions.type === "setCategory" && actions.categoryId) {
-                return actions.categoryId;
+                const category = await prisma.category.findFirst({
+                    where: {
+                        id: actions.categoryId,
+                        workspaceId: workspace.id,
+                        deletedAt: null,
+                        OR: ownerUserId
+                            ? [
+                                { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                                { ownerUserId },
+                            ]
+                            : [{ ownerUserId: SYSTEM_CATEGORY_OWNER_ID }],
+                    },
+                    select: { id: true },
+                });
+
+                if (category) {
+                    return category.id;
+                }
             }
         }
 

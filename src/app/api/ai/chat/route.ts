@@ -6,6 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { aplicarReglas } from "@/lib/actions/rules";
 import { checkApiRateLimit } from "@/lib/security/api-rate-limit";
 import { requireWorkspaceAccess } from "@/lib/security/access";
+import {
+  SYSTEM_CATEGORY_OWNER_ID,
+  ensureDefaultCategoriesForWorkspace,
+  normalizeCategoryName,
+} from "@/lib/categories-defaults";
 
 type ToolErrorResult = {
   success: false;
@@ -56,6 +61,188 @@ function makeToolGuard() {
   };
 }
 
+function collectText(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!value || typeof value !== "object") return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectText(item));
+  }
+
+  const obj = value as {
+    text?: unknown;
+    content?: unknown;
+    parts?: unknown;
+    type?: unknown;
+  };
+
+  const chunks: string[] = [];
+
+  if (typeof obj.text === "string") {
+    chunks.push(obj.text);
+  }
+
+  if (obj.type === "text" && typeof obj.text === "string") {
+    chunks.push(obj.text);
+  }
+
+  if (obj.content !== undefined) {
+    chunks.push(...collectText(obj.content));
+  }
+
+  if (obj.parts !== undefined) {
+    chunks.push(...collectText(obj.parts));
+  }
+
+  return chunks;
+}
+
+function extractTextFromMessage(message: unknown): string {
+  const text = collectText(message)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return text;
+}
+
+type AllowedChatRole = "user" | "assistant" | "system";
+type SanitizedMessage = {
+  role: AllowedChatRole;
+  parts: [{ type: "text"; text: string }];
+};
+
+function isAllowedChatRole(role: unknown): role is AllowedChatRole {
+  return role === "user" || role === "assistant" || role === "system";
+}
+
+function sanitizeMessagesForModel(messages: unknown[]): SanitizedMessage[] {
+  const sanitized = messages
+    .map((message): SanitizedMessage | null => {
+      if (!message || typeof message !== "object") return null;
+      const msg = message as { role?: unknown };
+      if (!isAllowedChatRole(msg.role)) return null;
+
+      const content = extractTextFromMessage(message);
+      if (!content) return null;
+
+      return {
+        role: msg.role,
+        parts: [{ type: "text", text: content }],
+      };
+    })
+    .filter((entry): entry is SanitizedMessage => entry !== null);
+
+  const hasUserWithText = sanitized.some((m) => {
+    if (m.role !== "user") return false;
+    const text = m.parts[0]?.text;
+    return typeof text === "string" && text.trim().length > 0;
+  });
+
+  if (!hasUserWithText) {
+    return [{ role: "user", parts: [{ type: "text", text: "Hola" }] }];
+  }
+
+  return sanitized;
+}
+
+function classifyUserIntent(input: string) {
+  const text = input.toLowerCase().trim();
+  const simpleGreeting = /^(hola|holi|buenas|buen día|buenas tardes|buenas noches|hello|hi)\b[!.?\s]*$/i.test(text);
+  const supportIntent = /(soporte|ayuda técnica|contacto|asesor|humano|atención|atencion al cliente)/i.test(text);
+
+  return {
+    simpleGreeting,
+    supportIntent,
+  };
+}
+
+function stripAccents(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeFreeText(value: string) {
+  return stripAccents(value.toLowerCase().trim());
+}
+
+function resolveCategoryByKeywords(
+  description: string,
+  categories: Array<{ id: string; name: string; normalizedName: string }>
+) {
+  const text = normalizeFreeText(description);
+
+  const keywordGroups: Array<{ keywords: string[]; preferredCategory: string[] }> = [
+    { keywords: ["cafe", "cafeteria", "almuerzo", "desayuno", "cena", "restaurante", "menu", "comida"], preferredCategory: ["comida", "supermercado"] },
+    { keywords: ["uber", "taxi", "bus", "pasaje", "movilidad", "metro", "combustible", "gasolina", "peaje", "estacionamiento"], preferredCategory: ["transporte", "combustible", "estacionamiento", "auto"] },
+    { keywords: ["internet", "wifi", "fibra", "movistar", "claro", "entel"], preferredCategory: ["internet", "servicios"] },
+    { keywords: ["netflix", "spotify", "youtube", "disney", "prime", "stream"], preferredCategory: ["streaming", "musica", "entretenimiento", "subscripciones"] },
+    { keywords: ["botica", "farmacia", "medicina", "medico", "doctor", "clinica"], preferredCategory: ["farmacia", "salud"] },
+    { keywords: ["colegio", "universidad", "curso", "matricula", "educacion"], preferredCategory: ["educacion"] },
+    { keywords: ["alquiler", "hipoteca", "casa", "departamento", "vivienda"], preferredCategory: ["vivienda"] },
+    { keywords: ["gimnasio", "gym", "crossfit"], preferredCategory: ["gimnasio", "deportes"] },
+    { keywords: ["seguro", "poliza", "soat"], preferredCategory: ["seguros"] },
+    { keywords: ["tarjeta", "visa", "mastercard", "credito"], preferredCategory: ["tarjetas", "finanzas"] },
+  ];
+
+  for (const group of keywordGroups) {
+    if (!group.keywords.some((kw) => text.includes(kw))) continue;
+
+    for (const preferred of group.preferredCategory) {
+      const normalizedPreferred = normalizeCategoryName(preferred);
+      const match = categories.find((cat) => cat.normalizedName === normalizedPreferred);
+      if (match) return match.id;
+    }
+  }
+
+  return null;
+}
+
+function resolveAccountByName(
+  accountName: string,
+  accounts: Array<{ id: string; name: string; normalizedName: string }>
+) {
+  const normalizedInput = normalizeCategoryName(accountName);
+
+  const exact = accounts.find((a) => a.normalizedName === normalizedInput);
+  if (exact) return { id: exact.id, confidence: 1 };
+
+  const partial = accounts.find(
+    (a) => a.normalizedName.includes(normalizedInput) || normalizedInput.includes(a.normalizedName)
+  );
+  if (partial) return { id: partial.id, confidence: 0.8 };
+
+  return null;
+}
+
+function resolveCategoryByName(
+  categoryName: string,
+  categories: Array<{ id: string; name: string; normalizedName: string }>
+) {
+  const normalizedInput = normalizeCategoryName(categoryName);
+
+  const exact = categories.find((c) => c.normalizedName === normalizedInput);
+  if (exact) return { id: exact.id, confidence: 1 };
+
+  const partial = categories.find(
+    (c) => c.normalizedName.includes(normalizedInput) || normalizedInput.includes(c.normalizedName)
+  );
+  if (partial) return { id: partial.id, confidence: 0.8 };
+
+  return null;
+}
+
+function formatDateForWorkspace(date: Date, timezone: string) {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "long",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -66,6 +253,9 @@ export async function POST(req: Request) {
     const access = await requireWorkspaceAccess("member");
     const workspaceId = access.workspace.id;
     const userId = access.userId;
+    const workspaceTimezone = access.workspace.timezone || "America/Lima";
+
+    await ensureDefaultCategoriesForWorkspace(prisma, workspaceId);
 
     const rateLimitResponse = checkApiRateLimit({
       bucket: "api:ai-chat:user",
@@ -77,9 +267,26 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const coreMessages = Array.isArray(body?.messages) ? body.messages : [];
-    const modelMessages = await convertToModelMessages(coreMessages);
+
+    const sanitizedMessages = sanitizeMessagesForModel(coreMessages);
+    let modelMessages = await convertToModelMessages(sanitizedMessages);
+
+    const hasUserMessage = modelMessages.some((message) => {
+      const m = message as { role?: string; content?: unknown };
+      return m.role === "user" && extractTextFromMessage(m.content).trim().length > 0;
+    });
+
+    if (!hasUserMessage) {
+      modelMessages = await convertToModelMessages([{ role: "user", parts: [{ type: "text", text: "Hola" }] }]);
+    }
+
+    const lastUserText = [...sanitizedMessages]
+      .reverse()
+      .find((message) => message.role === "user")?.parts?.[0]?.text || "Hola";
+    const { simpleGreeting, supportIntent } = classifyUserIntent(lastUserText);
 
     const currentDate = new Date().toLocaleDateString("es-PE", {
+      timeZone: workspaceTimezone,
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -88,15 +295,28 @@ export async function POST(req: Request) {
 
     const guardTool = makeToolGuard();
 
-    const systemPrompt = `Eres Billeto, un asistente financiero experto.
+    const systemPrompt = `Eres Billeto, asistente financiero profesional.
 Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
 
+Objetivo de estilo:
+- Respuesta profesional y útil en formato breve.
+- Usa 2 a 4 líneas con viñetas cuando sea posible.
+- Evita respuestas genéricas repetitivas como "hola, ¿en qué te ayudo?" sin contenido accionable.
+- No uses emojis innecesarios.
+
 Reglas operativas:
-1) Respondé en español, de forma breve y clara.
-2) Usá herramientas cuando aporten valor real.
-3) Si faltan datos críticos para mutar (monto, descripción o tipo), pedí aclaración antes de ejecutar.
-4) Nunca inventes IDs ni datos de cuenta/categoría.
-5) Si hay error de herramienta, explicalo y propone el siguiente paso.
+1) Si el usuario solo saluda, responde con micro-guía útil (3 viñetas): registrar gasto, ver balance, ver últimos movimientos.
+2) Si faltan datos críticos para mutar (monto, descripción o tipo), pedí aclaración antes de ejecutar tools.
+3) Nunca pidas IDs ni comandos internos (como accounts_list o categories_list) al usuario final.
+4) Para registrar gastos, prioriza nombres humanos (cuenta/categoría) y resuelve internamente.
+5) Si el usuario menciona una cuenta/categoría no reconocida, pide confirmación breve en lenguaje natural.
+6) Si hay error de herramienta, explica el error y da siguiente paso concreto.
+7) CTA de soporte por WhatsApp SOLO si el usuario solicita soporte/contacto humano.
+8) Cuando no sea soporte, no incluyas enlace de WhatsApp.
+
+Contexto de intención detectada:
+- Saludo simple detectado: ${simpleGreeting ? "sí" : "no"}
+- Intención de soporte detectada: ${supportIntent ? "sí" : "no"}
 `;
 
     const result = streamText({
@@ -112,8 +332,10 @@ Reglas operativas:
             amount: z.number().describe("Monto de la transacción"),
             description: z.string().describe("Descripción"),
             type: z.enum(["income", "expense"]).default("expense"),
-            category_id: z.string().optional().describe("ID de categoría"),
-            account_id: z.string().optional().describe("ID de cuenta"),
+            category_name: z.string().optional().describe("Nombre de categoría (ej: Comida, Transporte)"),
+            account_name: z.string().optional().describe("Nombre de cuenta (ej: Efectivo, BCP)"),
+            category_id: z.string().optional().describe("ID de categoría (compatibilidad interna)"),
+            account_id: z.string().optional().describe("ID de cuenta (compatibilidad interna)"),
             date: z.string().optional().describe("Fecha ISO-8601 (YYYY-MM-DD)"),
             request_id: z.string().optional().describe("ID idempotente para evitar duplicados"),
           }),
@@ -150,16 +372,38 @@ Reglas operativas:
                 }
 
                 let finalAccountId = args.account_id;
-                if (!finalAccountId) {
-                  const accounts = await prisma.account.findMany({
-                    where: { workspaceId, deletedAt: null },
-                    orderBy: { name: "asc" },
-                  });
+                const accounts = await prisma.account.findMany({
+                  where: { workspaceId, deletedAt: null },
+                  orderBy: { name: "asc" },
+                  select: { id: true, name: true, normalizedName: true },
+                });
 
-                  if (accounts.length === 0) {
-                    return toToolError("account_not_found", "No hay cuentas registradas en el workspace.");
+                if (accounts.length === 0) {
+                  return toToolError("account_not_found", "No hay cuentas registradas en el workspace.");
+                }
+
+                if (finalAccountId) {
+                  const accountExists = accounts.some((account) => account.id === finalAccountId);
+                  if (!accountExists) {
+                    finalAccountId = undefined;
                   }
+                }
 
+                if (!finalAccountId && args.account_name?.trim()) {
+                  const resolvedAccount = resolveAccountByName(args.account_name, accounts);
+                  if (!resolvedAccount || resolvedAccount.confidence < 0.75) {
+                    return {
+                      success: false,
+                      needs_confirmation: true,
+                      field: "account_name",
+                      message: `No pude identificar con precisión la cuenta "${args.account_name}". ¿Con qué cuenta lo registro?`,
+                      options: accounts.slice(0, 5).map((a) => a.name),
+                    };
+                  }
+                  finalAccountId = resolvedAccount.id;
+                }
+
+                if (!finalAccountId) {
                   const cashAccount = accounts.find(
                     (a) =>
                       a.normalizedName === "efectivo" ||
@@ -172,6 +416,71 @@ Reglas operativas:
 
                 const amountNum = Number(args.amount);
                 const increment = args.type === "income" ? amountNum : -amountNum;
+
+                const visibleCategories = await prisma.category.findMany({
+                  where: {
+                    workspaceId,
+                    deletedAt: null,
+                    OR: [
+                      { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                      { ownerUserId: userId },
+                    ],
+                  },
+                  select: { id: true, name: true, normalizedName: true, type: true },
+                });
+
+                let finalCategoryId = args.category_id;
+                if (finalCategoryId) {
+                  const validCategory = visibleCategories.find((c) => c.id === finalCategoryId);
+                  if (!validCategory) {
+                    finalCategoryId = undefined;
+                  }
+                }
+
+                if (!finalCategoryId && args.category_name?.trim()) {
+                  const resolvedCategory = resolveCategoryByName(args.category_name, visibleCategories);
+                  if (!resolvedCategory || resolvedCategory.confidence < 0.75) {
+                    return {
+                      success: false,
+                      needs_confirmation: true,
+                      field: "category_name",
+                      message: `No pude identificar con precisión la categoría "${args.category_name}". ¿Cuál categoría deseas usar?`,
+                      options: visibleCategories.slice(0, 8).map((c) => c.name),
+                    };
+                  }
+                  finalCategoryId = resolvedCategory.id;
+                }
+
+                if (!finalCategoryId) {
+                  const byRule = await aplicarReglas(args.description, userId);
+                  if (byRule && visibleCategories.some((c) => c.id === byRule)) {
+                    finalCategoryId = byRule;
+                  }
+                }
+
+                if (!finalCategoryId) {
+                  const byKeyword = resolveCategoryByKeywords(args.description, visibleCategories);
+                  if (byKeyword) {
+                    finalCategoryId = byKeyword;
+                  }
+                }
+
+                if (!finalCategoryId) {
+                  const fallback = visibleCategories.find((c) => c.normalizedName === "otros");
+                  if (fallback) {
+                    finalCategoryId = fallback.id;
+                  }
+                }
+
+                if (!finalCategoryId) {
+                  return {
+                    success: false,
+                    needs_confirmation: true,
+                    field: "category_name",
+                    message: "No encontré una categoría confiable para este gasto. ¿Qué categoría deseas usar?",
+                    options: visibleCategories.slice(0, 8).map((c) => c.name),
+                  };
+                }
 
                 const tx = await prisma.$transaction(async (db) => {
                   const updatedAccount = await db.account.updateMany({
@@ -192,7 +501,7 @@ Reglas operativas:
                       description: args.description,
                       type: args.type,
                       date: args.date ? new Date(args.date) : new Date(),
-                      categoryId: args.category_id,
+                      categoryId: finalCategoryId,
                       accountId: finalAccountId as string,
                       workspaceId,
                       requestId: args.request_id,
@@ -201,27 +510,33 @@ Reglas operativas:
                   });
                 });
 
-                if (!args.category_id) {
-                  const autoCatId = await aplicarReglas(args.description);
-                  if (autoCatId) {
-                    await prisma.transaction.update({
-                      where: { id: tx.id },
-                      data: { categoryId: autoCatId },
-                    });
-                    const cat = await prisma.category.findUnique({ where: { id: autoCatId } });
-                    if (cat && tx.category) tx.category.name = cat.name;
-                  }
-                }
+                const selectedAccount = accounts.find((a) => a.id === finalAccountId);
 
                 return {
                   success: true,
-                  message: `Transacción registrada: ${args.description} (${args.type === "income" ? "+" : "-"}S/${args.amount}).`,
+                  message: "✅ Transacción registrada",
                   transaction: {
                     id: tx.id,
                     description: tx.description,
                     amount: tx.amountBase,
+                    currency: "PEN",
                     accountName: tx.account.name,
-                    categoryName: tx.category?.name || "Sin categoría",
+                    categoryName: tx.category?.name || "Otros",
+                    date: formatDateForWorkspace(tx.date, workspaceTimezone),
+                    type: tx.type,
+                  },
+                  summaryCard: {
+                    title: "Transacción Registrada",
+                    id: tx.id,
+                    amount: `S/${Number(tx.amountBase).toFixed(2)} PEN`,
+                    description: tx.description,
+                    category: tx.category?.name || "Otros",
+                    account: tx.account.name,
+                    date: formatDateForWorkspace(tx.date, workspaceTimezone),
+                    transactionType: tx.type === "income" ? "Ingreso" : "Gasto",
+                    accountDecision: args.account_name?.trim()
+                      ? `Cuenta interpretada: ${selectedAccount?.name || tx.account.name}`
+                      : `Cuenta por defecto: ${selectedAccount?.name || tx.account.name}`,
                   },
                 };
               })(), TOOL_TIMEOUT_MS, "Timeout al crear la transacción");
@@ -320,7 +635,17 @@ Reglas operativas:
             try {
               guardTool("categories_list", args);
               const categories = await withTimeout(
-                prisma.category.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
+                prisma.category.findMany({
+                  where: {
+                    workspaceId,
+                    deletedAt: null,
+                    OR: [
+                      { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                      { ownerUserId: userId },
+                    ],
+                  },
+                  orderBy: { name: "asc" },
+                }),
                 TOOL_TIMEOUT_MS,
                 "Timeout al listar categorías"
               );
@@ -412,7 +737,11 @@ Reglas operativas:
       },
     });
 
-    return result.toTextStreamResponse();
+    return result.toTextStreamResponse({
+      headers: {
+        "X-Billeto-Intent-Support": supportIntent ? "1" : "0",
+      },
+    });
   } catch (error: unknown) {
     console.error("chat.route.error", { message: getErrorMessage(error, "chat_error") });
     return Response.json(

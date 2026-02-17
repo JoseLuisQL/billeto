@@ -6,6 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import { aplicarReglas } from "@/lib/actions/rules";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
+import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -101,7 +102,7 @@ export async function crearTransaccion(formData: FormData) {
 
         // Auto-categorización: si no se especificó categoría, aplicar reglas
         if (!categoryId && description) {
-            const catAutoId = await aplicarReglas(description);
+            const catAutoId = await aplicarReglas(description, userId);
             if (catAutoId) categoryId = catAutoId;
         }
         const type = (formData.get("type") as string) || "expense";
@@ -120,6 +121,25 @@ export async function crearTransaccion(formData: FormData) {
         });
 
         if (!cuenta) return { error: "Cuenta no encontrada." };
+
+        if (categoryId) {
+            const categoria = await prisma.category.findFirst({
+                where: {
+                    id: categoryId,
+                    workspaceId: workspace.id,
+                    deletedAt: null,
+                    OR: [
+                        { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                        { ownerUserId: userId },
+                    ],
+                },
+                select: { id: true },
+            });
+
+            if (!categoria) {
+                return { error: "Categoría no válida para este usuario." };
+            }
+        }
 
         // Calcular el cambio de balance
         // expense → resta, income → suma

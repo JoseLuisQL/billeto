@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
+import { ensureDefaultCategoriesForWorkspace } from "@/lib/categories-defaults";
 
 /**
  * Server Actions para autenticación.
@@ -11,22 +12,6 @@ import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
  * el registro de usuarios y la creación de workspaces.
  */
 
-// Categorías predeterminadas para nuevos workspaces
-const CATEGORIAS_SEED = [
-    { name: "Alimentación", icon: "🍔", color: "#F59E0B", type: "expense" },
-    { name: "Transporte", icon: "🚗", color: "#3B82F6", type: "expense" },
-    { name: "Entretenimiento", icon: "🎬", color: "#8B5CF6", type: "expense" },
-    { name: "Salud", icon: "🏥", color: "#EF4444", type: "expense" },
-    { name: "Educación", icon: "📚", color: "#06B6D4", type: "expense" },
-    { name: "Servicios", icon: "💡", color: "#F97316", type: "expense" },
-    { name: "Compras", icon: "🛍️", color: "#EC4899", type: "expense" },
-    { name: "Vivienda", icon: "🏠", color: "#14B8A6", type: "expense" },
-    { name: "Sueldo", icon: "💰", color: "#22C55E", type: "income" },
-    { name: "Freelance", icon: "💻", color: "#6366F1", type: "income" },
-    { name: "Inversiones", icon: "📈", color: "#84CC16", type: "income" },
-    { name: "Otros ingresos", icon: "💵", color: "#A3E635", type: "income" },
-    { name: "Sin categoría", icon: "❓", color: "#71717A", type: "both" },
-];
 
 /**
  * Registrar un nuevo usuario.
@@ -101,17 +86,8 @@ export async function registrarUsuario(formData: FormData) {
                 },
             });
 
-            // 4. Crear categorías predeterminadas
-            await tx.category.createMany({
-                data: CATEGORIAS_SEED.map((cat) => ({
-                    workspaceId: workspace.id,
-                    name: cat.name,
-                    normalizedName: cat.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                    icon: cat.icon,
-                    color: cat.color,
-                    type: cat.type,
-                })),
-            });
+            // 4. Crear categorías predeterminadas del sistema
+            await ensureDefaultCategoriesForWorkspace(tx, workspace.id);
 
             // 5. Crear cuenta de efectivo por defecto
             await tx.account.create({

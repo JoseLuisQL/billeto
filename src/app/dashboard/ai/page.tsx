@@ -50,6 +50,16 @@ export default function AIAssistantPage() {
         }
     };
 
+    useEffect(() => {
+        if (status === "error") {
+            toast({
+                title: "El chat se interrumpió",
+                description: "Reintentá el último mensaje o escribí uno nuevo.",
+                variant: "error",
+            });
+        }
+    }, [status, toast]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputValue.trim() || isLoading) return;

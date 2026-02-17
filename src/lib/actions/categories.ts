@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
+import {
+    SYSTEM_CATEGORY_OWNER_ID,
+    ensureDefaultCategoriesForWorkspace,
+    normalizeCategoryName,
+} from "@/lib/categories-defaults";
 
 /**
  * Server Actions para Categorías.
@@ -19,10 +24,18 @@ async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member"
  */
 export async function listarCategorias() {
     try {
-        const { workspace } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace();
+        await ensureDefaultCategoriesForWorkspace(prisma, workspace.id);
 
         const categorias = await prisma.category.findMany({
-            where: { workspaceId: workspace.id, deletedAt: null },
+            where: {
+                workspaceId: workspace.id,
+                deletedAt: null,
+                OR: [
+                    { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                    { ownerUserId: userId },
+                ],
+            },
             orderBy: [{ type: "asc" }, { name: "asc" }],
         });
 
@@ -54,17 +67,23 @@ export async function crearCategoria(formData: FormData) {
             return { error: "El nombre es obligatorio." };
         }
 
-        const normalizedName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const normalizedName = normalizeCategoryName(name);
 
         const existente = await prisma.category.findFirst({
-            where: { workspaceId: workspace.id, normalizedName, deletedAt: null },
+            where: {
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                normalizedName,
+                deletedAt: null,
+            },
         });
 
-        if (existente) return { error: "Ya existe una categoría con ese nombre." };
+        if (existente) return { error: "Ya existe una categoría personal con ese nombre." };
 
         const categoria = await prisma.category.create({
             data: {
                 workspaceId: workspace.id,
+                ownerUserId: userId,
                 name: name.trim(),
                 normalizedName,
                 icon,
@@ -116,27 +135,38 @@ export async function actualizarCategoria(id: string, formData: FormData) {
             return { error: "El nombre es obligatorio." };
         }
 
-        const normalizedName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const normalizedName = normalizeCategoryName(name);
 
         const categoria = await prisma.category.findFirst({
-            where: { id, workspaceId: workspace.id, deletedAt: null },
+            where: {
+                id,
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                deletedAt: null,
+            },
         });
 
-        if (!categoria) return { error: "Categoría no encontrada." };
+        if (!categoria) return { error: "Categoría no encontrada o no editable." };
 
         const existente = await prisma.category.findFirst({
             where: {
                 workspaceId: workspace.id,
+                ownerUserId: userId,
                 normalizedName,
                 deletedAt: null,
                 NOT: { id },
             },
         });
 
-        if (existente) return { error: "Ya existe una categoría con ese nombre." };
+        if (existente) return { error: "Ya existe una categoría personal con ese nombre." };
 
         const updated = await prisma.category.updateMany({
-            where: { id, workspaceId: workspace.id, deletedAt: null },
+            where: {
+                id,
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                deletedAt: null,
+            },
             data: { name: name.trim(), normalizedName, icon, color, type },
         });
 
@@ -145,7 +175,12 @@ export async function actualizarCategoria(id: string, formData: FormData) {
         }
 
         const actualizada = await prisma.category.findFirst({
-            where: { id, workspaceId: workspace.id, deletedAt: null },
+            where: {
+                id,
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                deletedAt: null,
+            },
         });
 
         if (!actualizada) {
@@ -176,10 +211,15 @@ export async function eliminarCategoria(id: string) {
         });
 
         const categoria = await prisma.category.findFirst({
-            where: { id, workspaceId: workspace.id, deletedAt: null },
+            where: {
+                id,
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                deletedAt: null,
+            },
         });
 
-        if (!categoria) return { error: "Categoría no encontrada." };
+        if (!categoria) return { error: "Categoría no encontrada o no editable." };
 
         // Verificar si tiene transacciones
         const txCount = await prisma.transaction.count({
@@ -191,7 +231,12 @@ export async function eliminarCategoria(id: string) {
         }
 
         const deleted = await prisma.category.updateMany({
-            where: { id, workspaceId: workspace.id, deletedAt: null },
+            where: {
+                id,
+                workspaceId: workspace.id,
+                ownerUserId: userId,
+                deletedAt: null,
+            },
             data: { deletedAt: new Date(), deletedBy: userId },
         });
 

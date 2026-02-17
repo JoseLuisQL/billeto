@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { type InferSchema } from "xmcp";
 import { prisma } from "@/lib/prisma";
+import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
 
 export const schema = {};
 
@@ -17,12 +17,18 @@ export const metadata = {
 
 export default async function categoriesList(
     _args: InferSchema<typeof schema>,
-    context: { workspaceId: string }
+    context: { workspaceId: string; userId?: string }
 ) {
     const categories = await prisma.category.findMany({
         where: {
             workspaceId: context.workspaceId,
             deletedAt: null,
+            OR: context.userId
+                ? [
+                    { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                    { ownerUserId: context.userId },
+                ]
+                : [{ ownerUserId: SYSTEM_CATEGORY_OWNER_ID }],
         },
         orderBy: { name: "asc" },
         select: { id: true, name: true, icon: true, color: true, type: true },

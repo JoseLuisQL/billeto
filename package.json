@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"xmcp dev\" \"next dev\"",
+    "dev": "xmcp build && concurrently \"xmcp dev\" \"next dev\"",
     "build": "xmcp build && next build",
     "start": "next start",
     "lint": "eslint"

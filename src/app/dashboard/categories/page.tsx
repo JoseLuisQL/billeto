@@ -36,6 +36,7 @@ type CategoriaItem = {
     icon: string;
     color: string;
     type: "expense" | "income" | "both";
+    ownerUserId?: string;
 };
 
 export default function CategoriesPage() {
@@ -207,29 +208,34 @@ export default function CategoriesPage() {
                                     </span>
                                     <div className="min-w-0">
                                         <p className="text-sm font-medium text-white truncate">{cat.name}</p>
-                                        <p className="text-xs text-muted-foreground capitalize">{cat.type === "income" ? "Ingreso" : "Gasto"}</p>
+                                        <p className="text-xs text-muted-foreground capitalize">
+                                            {cat.type === "income" ? "Ingreso" : "Gasto"}
+                                            {cat.ownerUserId === "__SYSTEM__" ? " · Predefinida" : " · Personal"}
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                    <button
-                                        onClick={() => {
-                                            setEditando(cat);
-                                            setIconSeleccionado(cat.icon);
-                                            setColorSeleccionado(cat.color);
-                                            setModal("editar");
-                                            setError(null);
-                                        }}
-                                        className="p-1 rounded hover:bg-white/10 text-muted-foreground hover:text-white"
-                                    >
-                                        <Pencil className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleEliminar(cat.id)}
-                                        className="p-1 rounded hover:bg-red-400/10 text-muted-foreground hover:text-red-400"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </button>
-                                </div>
+                                {cat.ownerUserId !== "__SYSTEM__" && (
+                                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <button
+                                            onClick={() => {
+                                                setEditando(cat);
+                                                setIconSeleccionado(cat.icon);
+                                                setColorSeleccionado(cat.color);
+                                                setModal("editar");
+                                                setError(null);
+                                            }}
+                                            className="p-1 rounded hover:bg-white/10 text-muted-foreground hover:text-white"
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleEliminar(cat.id)}
+                                            className="p-1 rounded hover:bg-red-400/10 text-muted-foreground hover:text-red-400"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
