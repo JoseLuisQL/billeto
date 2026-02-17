@@ -275,14 +275,13 @@ export async function eliminarTransaccion(id: string) {
 /**
  * Obtener resumen financiero del mes actual para el dashboard.
  */
-export async function obtenerResumenDashboard() {
+export async function obtenerResumenDashboard(rango?: { from?: string; to?: string }) {
     try {
         const { workspace } = await obtenerWorkspace();
 
-        // Primer día del mes actual
         const ahora = new Date();
-        const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-        const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
+        const inicioMes = rango?.from ? new Date(rango.from) : new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        const finMes = rango?.to ? new Date(rango.to) : new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
 
         // Balance total de cuentas
         const cuentas = await prisma.account.findMany({
@@ -309,16 +308,78 @@ export async function obtenerResumenDashboard() {
             .filter((tx) => tx.type === "expense")
             .reduce((sum: number, tx) => sum + Number(tx.amountBase), 0);
 
-        // Últimas transacciones
-        const ultimasTransacciones = await prisma.transaction.findMany({
+        // Últimas transacciones globales, priorizando hoy
+        const candidatasUltimas = await prisma.transaction.findMany({
             where: { workspaceId: workspace.id, deletedAt: null },
             include: {
                 account: { select: { name: true } },
                 category: { select: { name: true, icon: true, color: true } },
             },
-            orderBy: { date: "desc" },
-            take: 5,
+            orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+            take: 100,
         });
+
+        const inicioHoy = new Date();
+        inicioHoy.setHours(0, 0, 0, 0);
+        const finHoy = new Date();
+        finHoy.setHours(23, 59, 59, 999);
+
+        const ultimasTransacciones = candidatasUltimas
+            .sort((a, b) => {
+                const aHoy = a.date >= inicioHoy && a.date <= finHoy;
+                const bHoy = b.date >= inicioHoy && b.date <= finHoy;
+
+                if (aHoy !== bHoy) {
+                    return aHoy ? -1 : 1;
+                }
+
+                const byDate = b.date.getTime() - a.date.getTime();
+                if (byDate !== 0) return byDate;
+
+                return b.createdAt.getTime() - a.createdAt.getTime();
+            })
+            .slice(0, 5);
+
+        const dias = Array.from({ length: 30 }, (_, i) => {
+            const d = new Date(finMes);
+            d.setDate(finMes.getDate() - (29 - i));
+            d.setHours(0, 0, 0, 0);
+            return d;
+        });
+
+        const transaccionesUltimos30 = await prisma.transaction.findMany({
+            where: {
+                workspaceId: workspace.id,
+                deletedAt: null,
+                date: {
+                    gte: dias[0],
+                    lte: finMes,
+                },
+            },
+            select: { date: true },
+        });
+
+        const conteoPorDia = new Map<string, number>();
+        for (const tx of transaccionesUltimos30) {
+            const k = tx.date.toISOString().slice(0, 10);
+            conteoPorDia.set(k, (conteoPorDia.get(k) ?? 0) + 1);
+        }
+
+        const streakDays = dias.map((d) => {
+            const key = d.toISOString().slice(0, 10);
+            return { date: key, count: conteoPorDia.get(key) ?? 0 };
+        });
+
+        let current = 0;
+        let maxStreak = 0;
+        for (const day of streakDays) {
+            if (day.count > 0) {
+                current += 1;
+                maxStreak = Math.max(maxStreak, current);
+            } else {
+                current = 0;
+            }
+        }
 
         return {
             balanceTotal,
@@ -326,6 +387,11 @@ export async function obtenerResumenDashboard() {
             gastosMes,
             totalTransacciones: transaccionesMes.length,
             moneda: workspace.baseCurrency,
+            streak: {
+                days: streakDays,
+                maxStreak,
+                totalInWindow: transaccionesUltimos30.length,
+            },
             cuentas: cuentas.map((c) => ({
                 id: c.id,
                 name: c.name,
@@ -339,6 +405,7 @@ export async function obtenerResumenDashboard() {
                 amount: Number(tx.amountOriginal),
                 type: tx.type,
                 date: tx.date.toISOString(),
+                source: tx.source,
                 account: tx.account?.name,
                 category: tx.category,
             })),
@@ -350,6 +417,11 @@ export async function obtenerResumenDashboard() {
             gastosMes: 0,
             totalTransacciones: 0,
             moneda: "PEN",
+            streak: {
+                days: [],
+                maxStreak: 0,
+                totalInWindow: 0,
+            },
             cuentas: [],
             ultimasTransacciones: [],
         };
