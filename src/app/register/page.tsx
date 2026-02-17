@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { registrarUsuario } from "@/lib/actions/auth";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Página de Registro con integración real de server actions.
@@ -17,6 +18,7 @@ import { registrarUsuario } from "@/lib/actions/auth";
  */
 export default function RegisterPage() {
     const router = useRouter();
+    const { toast } = useToast();
     const [mostrarPassword, setMostrarPassword] = useState(false);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export default function RegisterPage() {
 
         if (resultado.error) {
             setError(resultado.error);
+            toast({ title: "No se pudo registrar", description: resultado.error, variant: "error" });
             setCargando(false);
         } else {
             // Redirigir al dashboard después del registro exitoso

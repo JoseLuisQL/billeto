@@ -14,14 +14,30 @@ import {
 } from "@/lib/actions/recurring";
 import { listarCuentas } from "@/lib/actions/accounts";
 import { listarCategorias } from "@/lib/actions/categories";
+import { useToast } from "@/components/ui/toast";
+
+type RecurrenteItem = {
+    id: string;
+    name: string;
+    amount: number;
+    type: "income" | "expense";
+    frequency: string;
+    status: "active" | "paused";
+    accountId?: string | null;
+    categoryId?: string | null;
+    nextRunAt: string;
+};
+
+type OptionItem = { id: string; name: string; icon?: string };
 
 export default function RecurringPage() {
     const { status } = useSession();
     const router = useRouter();
+    const { toast } = useToast();
 
-    const [recurrentes, setRecurrentes] = useState<any[]>([]);
-    const [cuentas, setCuentas] = useState<any[]>([]);
-    const [categorias, setCategorias] = useState<any[]>([]);
+    const [recurrentes, setRecurrentes] = useState<RecurrenteItem[]>([]);
+    const [cuentas, setCuentas] = useState<OptionItem[]>([]);
+    const [categorias, setCategorias] = useState<OptionItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modalAbierto, setModalAbierto] = useState(false);
     const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -40,10 +56,6 @@ export default function RecurringPage() {
         if (status === "unauthenticated") router.push("/login");
     }, [status, router]);
 
-    useEffect(() => {
-        if (status === "authenticated") cargarDatos();
-    }, [status]);
-
     async function cargarDatos() {
         setCargando(true);
         const [recRes, ctsRes, catsRes] = await Promise.all([
@@ -51,13 +63,20 @@ export default function RecurringPage() {
             listarCuentas(),
             listarCategorias(),
         ]);
-        setRecurrentes(recRes.recurrentes);
-        setCuentas(ctsRes.cuentas || []);
-        setCategorias(catsRes.categorias || []);
+        setRecurrentes((recRes.recurrentes as RecurrenteItem[]) || []);
+        setCuentas((ctsRes.cuentas as OptionItem[]) || []);
+        setCategorias((catsRes.categorias as OptionItem[]) || []);
         setCargando(false);
     }
 
-    function abrirModal(rec?: any) {
+    useEffect(() => {
+        if (status === "authenticated") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void cargarDatos();
+        }
+    }, [status]);
+
+    function abrirModal(rec?: RecurrenteItem) {
         if (rec) {
             setEditandoId(rec.id);
             setNombre(rec.name);
@@ -82,8 +101,16 @@ export default function RecurringPage() {
         e.preventDefault();
         setGuardando(true);
 
-        if (editandoId) {
-            await actualizarRecurrente(editandoId, {
+        const result = editandoId
+            ? await actualizarRecurrente(editandoId, {
+                name: nombre,
+                amount: parseFloat(monto),
+                type: tipo,
+                frequency: frecuencia,
+                accountId: cuentaId || undefined,
+                categoryId: categoriaId || undefined,
+            })
+            : await crearRecurrente({
                 name: nombre,
                 amount: parseFloat(monto),
                 type: tipo,
@@ -91,31 +118,45 @@ export default function RecurringPage() {
                 accountId: cuentaId || undefined,
                 categoryId: categoriaId || undefined,
             });
-        } else {
-            await crearRecurrente({
-                name: nombre,
-                amount: parseFloat(monto),
-                type: tipo,
-                frequency: frecuencia,
-                accountId: cuentaId || undefined,
-                categoryId: categoriaId || undefined,
-            });
-        }
 
         setGuardando(false);
+
+        if (!result.ok) {
+            toast({ title: "No se pudo guardar", description: result.error, variant: "error" });
+            return;
+        }
+
         setModalAbierto(false);
+        toast({
+            title: editandoId ? "Recurrente actualizada" : "Recurrente creada",
+            description: "La configuración se guardó correctamente.",
+            variant: "success",
+        });
         cargarDatos();
     }
 
     async function handleEliminar(id: string) {
         if (!confirm("¿Eliminar esta transacción recurrente?")) return;
-        await eliminarRecurrente(id);
+        const result = await eliminarRecurrente(id);
+        if (!result.ok) {
+            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
+            return;
+        }
+        toast({ title: "Recurrente eliminada", description: "La regla recurrente fue eliminada.", variant: "success" });
         cargarDatos();
     }
 
-    async function handleTogglePause(rec: any) {
+    async function handleTogglePause(rec: RecurrenteItem) {
         const nuevoStatus = rec.status === "active" ? "paused" : "active";
-        await actualizarRecurrente(rec.id, { status: nuevoStatus });
+        const result = await actualizarRecurrente(rec.id, { status: nuevoStatus });
+        if (!result.ok) {
+            toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
+            return;
+        }
+        toast({
+            title: nuevoStatus === "active" ? "Recurrente activada" : "Recurrente pausada",
+            variant: "success",
+        });
         cargarDatos();
     }
 
@@ -124,9 +165,13 @@ export default function RecurringPage() {
         const result = await ejecutarRecurrentes();
         setEjecutando(false);
         if (result.ok) {
-            alert(`✅ Se ejecutaron ${result.ejecutadas} transacciones recurrentes`);
+            toast({
+                title: "Ejecución completada",
+                description: `Se ejecutaron ${result.ejecutadas} transacciones recurrentes.`,
+                variant: "success",
+            });
         } else {
-            alert(`❌ Error: ${result.error}`);
+            toast({ title: "Error al ejecutar recurrentes", description: result.error, variant: "error" });
         }
         cargarDatos();
     }
@@ -148,7 +193,7 @@ export default function RecurringPage() {
     }
 
     const pendientes = recurrentes.filter(
-        (r: any) => r.status === "active" && new Date(r.nextRunAt) <= new Date()
+        (r) => r.status === "active" && new Date(r.nextRunAt) <= new Date()
     ).length;
 
     if (status === "loading") return null;
@@ -217,7 +262,7 @@ export default function RecurringPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {recurrentes.map((rec: any) => {
+                                    {recurrentes.map((rec) => {
                                         const vencida =
                                             rec.status === "active" && new Date(rec.nextRunAt) <= new Date();
                                         return (
@@ -380,7 +425,7 @@ export default function RecurringPage() {
                                     className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
                                 >
                                     <option value="">Sin asignar</option>
-                                    {cuentas.map((ct: any) => (
+                                    {cuentas.map((ct) => (
                                         <option key={ct.id} value={ct.id}>
                                             {ct.name}
                                         </option>
@@ -397,7 +442,7 @@ export default function RecurringPage() {
                                     className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
                                 >
                                     <option value="">Sin asignar</option>
-                                    {categorias.map((cat: any) => (
+                                    {categorias.map((cat) => (
                                         <option key={cat.id} value={cat.id}>
                                             {cat.icon || "📋"} {cat.name}
                                         </option>

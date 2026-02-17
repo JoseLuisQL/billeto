@@ -1,25 +1,22 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { requireWorkspaceAccess } from "@/lib/security/access";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 /**
  * Server Actions para el Rules Engine.
  * Maneja reglas de auto-categorización de transacciones.
  */
 
-async function obtenerWorkspace() {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error("No autenticado");
+function toAuditJson(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value));
+}
 
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
-    });
-
-    if (!membership) throw new Error("Sin workspace asignado");
-    return { userId: session.user.id, workspace: membership.workspace };
+async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member") {
+    return requireWorkspaceAccess(minRole);
 }
 
 /**
@@ -38,11 +35,11 @@ export async function listarReglas() {
         });
 
         return {
-            reglas: reglas.map((r: any) => ({
+            reglas: reglas.map((r) => ({
                 id: r.id,
                 name: r.name,
-                conditions: r.conditions as any,
-                actions: r.actions as any,
+                conditions: r.conditions as Record<string, unknown>,
+                actions: r.actions as Record<string, unknown>,
                 status: r.status,
                 priority: r.priority,
                 createdAt: r.createdAt.toISOString(),
@@ -65,7 +62,13 @@ export async function crearRegla(data: {
     priority?: number;
 }) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "rules:create:user",
+            key: userId,
+            limit: 15,
+            windowMs: 60_000,
+        });
 
         const conditions = {
             field: data.conditionField,
@@ -103,8 +106,11 @@ export async function crearRegla(data: {
 
         revalidatePath("/dashboard/rules");
         return { ok: true, regla };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al crear regla" };
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al crear regla" };
+        }
+        return { ok: false, error: "Error al crear regla" };
     }
 }
 
@@ -124,7 +130,13 @@ export async function actualizarRegla(
     }
 ) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "rules:update:user",
+            key: userId,
+            limit: 30,
+            windowMs: 60_000,
+        });
 
         const reglaExistente = await prisma.rule.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -132,7 +144,7 @@ export async function actualizarRegla(
 
         if (!reglaExistente) return { ok: false, error: "Regla no encontrada" };
 
-        const updateData: any = {};
+        const updateData: Record<string, unknown> = {};
 
         if (data.name) updateData.name = data.name;
         if (data.priority !== undefined) updateData.priority = data.priority;
@@ -183,14 +195,17 @@ export async function actualizarRegla(
                 entity: "Rule",
                 entityId: id,
                 before: { name: reglaExistente.name },
-                after: updateData,
+                after: toAuditJson(updateData),
             },
         });
 
         revalidatePath("/dashboard/rules");
         return { ok: true, regla };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al actualizar regla" };
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al actualizar regla" };
+        }
+        return { ok: false, error: "Error al actualizar regla" };
     }
 }
 
@@ -199,7 +214,13 @@ export async function actualizarRegla(
  */
 export async function eliminarRegla(id: string) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "rules:delete:user",
+            key: userId,
+            limit: 10,
+            windowMs: 60_000,
+        });
 
         const regla = await prisma.rule.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -228,8 +249,11 @@ export async function eliminarRegla(id: string) {
 
         revalidatePath("/dashboard/rules");
         return { ok: true };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al eliminar regla" };
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al eliminar regla" };
+        }
+        return { ok: false, error: "Error al eliminar regla" };
     }
 }
 
@@ -253,8 +277,8 @@ export async function aplicarReglas(description: string): Promise<string | null>
         const descLower = description.toLowerCase();
 
         for (const regla of reglas) {
-            const conditions = regla.conditions as any;
-            const actions = regla.actions as any;
+            const conditions = regla.conditions as { operator?: string; value?: string };
+            const actions = regla.actions as { type?: string; categoryId?: string };
 
             if (!conditions || !actions) continue;
 
@@ -273,7 +297,7 @@ export async function aplicarReglas(description: string): Promise<string | null>
                     break;
                 case "regex":
                     try {
-                        const re = new RegExp(conditions.value, "i");
+                        const re = new RegExp(conditions.value || "", "i");
                         match = re.test(description);
                     } catch {
                         match = false;

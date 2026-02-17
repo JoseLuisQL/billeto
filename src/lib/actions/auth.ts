@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 
 /**
  * Server Actions para autenticación.
@@ -39,7 +40,15 @@ const CATEGORIAS_SEED = [
 export async function registrarUsuario(formData: FormData) {
     try {
         const name = formData.get("name") as string;
-        const email = formData.get("email") as string;
+        const emailRaw = formData.get("email") as string;
+        const emailKey = (emailRaw || "").toLowerCase().trim();
+        enforceRateLimit({
+            bucket: "auth:register:email",
+            key: emailKey || "anon",
+            limit: 6,
+            windowMs: 60_000,
+        });
+        const email = emailKey;
         const password = formData.get("password") as string;
 
         // Validaciones básicas
@@ -151,6 +160,9 @@ export async function registrarUsuario(formData: FormData) {
 
         return { success: true, userId: resultado.id };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         console.error("Error al registrar usuario:", error);
         return { error: "Error interno del servidor. Intentá de nuevo." };
     }
@@ -164,23 +176,33 @@ export async function registrarUsuario(formData: FormData) {
  */
 export async function iniciarSesion(formData: FormData) {
     try {
-        const email = formData.get("email") as string;
+        const emailRaw = formData.get("email") as string;
+        const email = (emailRaw || "").toLowerCase().trim();
         const password = formData.get("password") as string;
+
+        enforceRateLimit({
+            bucket: "auth:login:email",
+            key: email || "anon",
+            limit: 10,
+            windowMs: 60_000,
+        });
 
         if (!email || !password) {
             return { error: "Email y contraseña son obligatorios." };
         }
 
-        const resultado = await signIn("credentials", {
+        await signIn("credentials", {
             email,
             password,
             redirect: false,
         });
 
         return { success: true };
-    } catch (error: any) {
-        // NextAuth lanza un error específico si las credenciales son inválidas
-        if (error?.type === "CredentialsSignin") {
+    } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
+        if (error instanceof Error && "type" in error && (error as Error & { type?: string }).type === "CredentialsSignin") {
             return { error: "Email o contraseña incorrectos." };
         }
         return { error: "Error al iniciar sesión. Intentá de nuevo." };

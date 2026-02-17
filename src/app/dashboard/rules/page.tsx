@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
-import { Zap, Plus, Trash2, Pencil, Power } from "lucide-react";
+import { Zap, Plus, Trash2, Pencil } from "lucide-react";
 import {
     listarReglas,
     crearRegla,
@@ -12,13 +12,26 @@ import {
     eliminarRegla,
 } from "@/lib/actions/rules";
 import { listarCategorias } from "@/lib/actions/categories";
+import { useToast } from "@/components/ui/toast";
+
+type RuleItem = {
+    id: string;
+    name: string;
+    status: "active" | "paused";
+    priority: number;
+    conditions?: { operator?: string; value?: string; field?: string };
+    actions?: { categoryId?: string };
+};
+
+type RuleCategoryItem = { id: string; name: string; icon?: string };
 
 export default function RulesPage() {
     const { status } = useSession();
     const router = useRouter();
+    const { toast } = useToast();
 
-    const [reglas, setReglas] = useState<any[]>([]);
-    const [categorias, setCategorias] = useState<any[]>([]);
+    const [reglas, setReglas] = useState<RuleItem[]>([]);
+    const [categorias, setCategorias] = useState<RuleCategoryItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modalAbierto, setModalAbierto] = useState(false);
     const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -36,22 +49,25 @@ export default function RulesPage() {
         if (status === "unauthenticated") router.push("/login");
     }, [status, router]);
 
-    useEffect(() => {
-        if (status === "authenticated") cargarDatos();
-    }, [status]);
-
     async function cargarDatos() {
         setCargando(true);
         const [reglasRes, catsRes] = await Promise.all([
             listarReglas(),
             listarCategorias(),
         ]);
-        setReglas(reglasRes.reglas);
-        setCategorias(catsRes.categorias || []);
+        setReglas((reglasRes.reglas as RuleItem[]) || []);
+        setCategorias((catsRes.categorias as RuleCategoryItem[]) || []);
         setCargando(false);
     }
 
-    function abrirModal(regla?: any) {
+    useEffect(() => {
+        if (status === "authenticated") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void cargarDatos();
+        }
+    }, [status]);
+
+    function abrirModal(regla?: RuleItem) {
         if (regla) {
             setEditandoId(regla.id);
             setNombre(regla.name);
@@ -76,8 +92,16 @@ export default function RulesPage() {
         e.preventDefault();
         setGuardando(true);
 
-        if (editandoId) {
-            await actualizarRegla(editandoId, {
+        const result = editandoId
+            ? await actualizarRegla(editandoId, {
+                name: nombre,
+                conditionField: campo,
+                conditionOperator: operador,
+                conditionValue: valor,
+                actionCategoryId: categoriaId,
+                priority: prioridad,
+            })
+            : await crearRegla({
                 name: nombre,
                 conditionField: campo,
                 conditionOperator: operador,
@@ -85,36 +109,51 @@ export default function RulesPage() {
                 actionCategoryId: categoriaId,
                 priority: prioridad,
             });
-        } else {
-            await crearRegla({
-                name: nombre,
-                conditionField: campo,
-                conditionOperator: operador,
-                conditionValue: valor,
-                actionCategoryId: categoriaId,
-                priority: prioridad,
-            });
-        }
 
         setGuardando(false);
+
+        if (!result.ok) {
+            toast({ title: "No se pudo guardar la regla", description: result.error, variant: "error" });
+            return;
+        }
+
         setModalAbierto(false);
+        toast({
+            title: editandoId ? "Regla actualizada" : "Regla creada",
+            description: "La regla fue guardada correctamente.",
+            variant: "success",
+        });
         cargarDatos();
     }
 
     async function handleEliminar(id: string) {
         if (!confirm("¿Eliminar esta regla?")) return;
-        await eliminarRegla(id);
+        const result = await eliminarRegla(id);
+        if (!result.ok) {
+            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
+            return;
+        }
+        toast({ title: "Regla eliminada", description: "La regla fue eliminada correctamente.", variant: "success" });
         cargarDatos();
     }
 
-    async function handleToggleStatus(regla: any) {
+    async function handleToggleStatus(regla: RuleItem) {
         const nuevoStatus = regla.status === "active" ? "paused" : "active";
-        await actualizarRegla(regla.id, { status: nuevoStatus });
+        const result = await actualizarRegla(regla.id, { status: nuevoStatus });
+        if (!result.ok) {
+            toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
+            return;
+        }
+        toast({
+            title: nuevoStatus === "active" ? "Regla activada" : "Regla pausada",
+            variant: "success",
+        });
         cargarDatos();
     }
 
-    function obtenerNombreCategoria(catId: string) {
-        const cat = categorias.find((c: any) => c.id === catId);
+    function obtenerNombreCategoria(catId?: string) {
+        if (!catId) return "Sin categoría";
+        const cat = categorias.find((c) => c.id === catId);
         return cat ? `${cat.icon || "📋"} ${cat.name}` : "Sin categoría";
     }
 
@@ -179,7 +218,7 @@ export default function RulesPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {reglas.map((regla: any) => (
+                                    {reglas.map((regla) => (
                                         <tr
                                             key={regla.id}
                                             className="border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -188,7 +227,9 @@ export default function RulesPage() {
                                             <td className="px-4 py-3 text-sm text-zinc-400">
                                                 <span className="text-zinc-500">Descripción</span>{" "}
                                                 <span className="text-amber-400/80">
-                                                    {operadorLabels[regla.conditions?.operator] || regla.conditions?.operator}
+                                                    {regla.conditions?.operator
+                                                        ? (operadorLabels[regla.conditions.operator] || regla.conditions.operator)
+                                                        : "condición"}
                                                 </span>{" "}
                                                 <span className="text-white font-mono text-xs bg-zinc-800 px-1.5 py-0.5 rounded">
                                                     {regla.conditions?.value}
@@ -297,7 +338,7 @@ export default function RulesPage() {
                                 required
                             >
                                 <option value="">Seleccionar categoría...</option>
-                                {categorias.map((cat: any) => (
+                                {categorias.map((cat) => (
                                     <option key={cat.id} value={cat.id}>
                                         {cat.icon || "📋"} {cat.name}
                                     </option>

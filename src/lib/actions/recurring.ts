@@ -1,28 +1,24 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, Prisma } from "@prisma/client";
+import { requireWorkspaceAccess } from "@/lib/security/access";
+import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 
 type TxClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+
+function toAuditJson(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value));
+}
 
 /**
  * Server Actions para Transacciones Recurrentes.
  * Maneja suscripciones y pagos periódicos.
  */
 
-async function obtenerWorkspace() {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error("No autenticado");
-
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
-    });
-
-    if (!membership) throw new Error("Sin workspace asignado");
-    return { userId: session.user.id, workspace: membership.workspace };
+async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member") {
+    return requireWorkspaceAccess(minRole);
 }
 
 /**
@@ -41,7 +37,7 @@ export async function listarRecurrentes() {
         });
 
         return {
-            recurrentes: recurrentes.map((r: any) => ({
+            recurrentes: recurrentes.map((r) => ({
                 id: r.id,
                 name: r.name,
                 amount: Number(r.amount),
@@ -74,7 +70,13 @@ export async function crearRecurrente(data: {
     nextRunAt?: string;
 }) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "recurring:create:user",
+            key: userId,
+            limit: 15,
+            windowMs: 60_000,
+        });
 
         // Calcular próxima ejecución si no se proporciona
         const nextRun = data.nextRunAt
@@ -109,8 +111,14 @@ export async function crearRecurrente(data: {
 
         revalidatePath("/dashboard/recurring");
         return { ok: true, recurrente };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al crear recurrente" };
+    } catch (err: unknown) {
+        if (isRateLimitError(err)) {
+            return { ok: false, error: err.message };
+        }
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al crear recurrente" };
+        }
+        return { ok: false, error: "Error al crear recurrente" };
     }
 }
 
@@ -130,7 +138,13 @@ export async function actualizarRecurrente(
     }
 ) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "recurring:update:user",
+            key: userId,
+            limit: 30,
+            windowMs: 60_000,
+        });
 
         const existente = await prisma.recurringTransaction.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -138,7 +152,7 @@ export async function actualizarRecurrente(
 
         if (!existente) return { ok: false, error: "Recurrente no encontrado" };
 
-        const updateData: any = {};
+        const updateData: Record<string, unknown> = {};
         if (data.name) updateData.name = data.name;
         if (data.amount !== undefined) updateData.amount = data.amount;
         if (data.type) updateData.type = data.type;
@@ -172,14 +186,20 @@ export async function actualizarRecurrente(
                 entity: "RecurringTransaction",
                 entityId: id,
                 before: { name: existente.name },
-                after: updateData,
+                after: toAuditJson(updateData),
             },
         });
 
         revalidatePath("/dashboard/recurring");
         return { ok: true, recurrente };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al actualizar recurrente" };
+    } catch (err: unknown) {
+        if (isRateLimitError(err)) {
+            return { ok: false, error: err.message };
+        }
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al actualizar recurrente" };
+        }
+        return { ok: false, error: "Error al actualizar recurrente" };
     }
 }
 
@@ -188,7 +208,13 @@ export async function actualizarRecurrente(
  */
 export async function eliminarRecurrente(id: string) {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "recurring:delete:user",
+            key: userId,
+            limit: 10,
+            windowMs: 60_000,
+        });
 
         const existente = await prisma.recurringTransaction.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -217,8 +243,14 @@ export async function eliminarRecurrente(id: string) {
 
         revalidatePath("/dashboard/recurring");
         return { ok: true };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al eliminar recurrente" };
+    } catch (err: unknown) {
+        if (isRateLimitError(err)) {
+            return { ok: false, error: err.message };
+        }
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al eliminar recurrente" };
+        }
+        return { ok: false, error: "Error al eliminar recurrente" };
     }
 }
 
@@ -228,7 +260,13 @@ export async function eliminarRecurrente(id: string) {
  */
 export async function ejecutarRecurrentes() {
     try {
-        const { userId, workspace } = await obtenerWorkspace();
+        const { userId, workspace } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "recurring:run:user",
+            key: userId,
+            limit: 8,
+            windowMs: 60_000,
+        });
 
         const ahora = new Date();
 
@@ -305,8 +343,14 @@ export async function ejecutarRecurrentes() {
         revalidatePath("/dashboard/recurring");
         revalidatePath("/dashboard/transactions");
         return { ok: true, ejecutadas };
-    } catch (err: any) {
-        return { ok: false, error: err.message || "Error al ejecutar recurrentes", ejecutadas: 0 };
+    } catch (err: unknown) {
+        if (isRateLimitError(err)) {
+            return { ok: false, error: err.message, ejecutadas: 0 };
+        }
+        if (err instanceof Error) {
+            return { ok: false, error: err.message || "Error al ejecutar recurrentes", ejecutadas: 0 };
+        }
+        return { ok: false, error: "Error al ejecutar recurrentes", ejecutadas: 0 };
     }
 }
 

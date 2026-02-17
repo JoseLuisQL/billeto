@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 /**
  * Middleware de Next.js para proteger rutas privadas.
@@ -12,6 +13,39 @@ import type { NextRequest } from "next/server";
  */
 export default function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+    if (pathname === "/api/ai/chat" && req.method === "POST") {
+        const rate = consumeRateLimit({
+            bucket: "api:ai-chat:ip",
+            key: ip,
+            limit: 30,
+            windowMs: 60_000,
+        });
+
+        if (!rate.allowed) {
+            return NextResponse.json(
+                { error: "rate_limited", message: "Demasiadas solicitudes al chat. Intentá de nuevo en unos segundos." },
+                { status: 429, headers: { "Retry-After": String(rate.retryAfter) } }
+            );
+        }
+    }
+
+    if (pathname.startsWith("/api/auth") && req.method === "POST") {
+        const rate = consumeRateLimit({
+            bucket: "api:auth:ip",
+            key: ip,
+            limit: 20,
+            windowMs: 60_000,
+        });
+
+        if (!rate.allowed) {
+            return NextResponse.json(
+                { error: "rate_limited", message: "Demasiados intentos de autenticación. Esperá un momento." },
+                { status: 429, headers: { "Retry-After": String(rate.retryAfter) } }
+            );
+        }
+    }
 
     // Rutas públicas que no requieren autenticación
     const rutasPublicas = [

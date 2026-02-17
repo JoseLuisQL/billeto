@@ -13,8 +13,10 @@ import { obtenerDistribucionCategorias } from "@/lib/actions/charts";
 /**
  * Gráfico de dona con distribución de gastos por categoría.
  */
+type PieItem = { name: string; value: number; fill: string };
+
 export function CategoryPieChart() {
-    const [datos, setDatos] = useState<any[]>([]);
+    const [datos, setDatos] = useState<PieItem[]>([]);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
@@ -41,7 +43,7 @@ export function CategoryPieChart() {
         );
     }
 
-    const total = datos.reduce((sum: number, d: any) => sum + d.value, 0);
+    const total = datos.reduce((sum, d) => sum + d.value, 0);
 
     return (
         <div className="flex flex-col gap-4">
@@ -57,7 +59,7 @@ export function CategoryPieChart() {
                         dataKey="value"
                         stroke="none"
                     >
-                        {datos.map((entry: any, index: number) => (
+                        {datos.map((entry, index: number) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                     </Pie>
@@ -76,7 +78,7 @@ export function CategoryPieChart() {
 
             {/* Leyenda personalizada */}
             <div className="space-y-2 px-2">
-                {datos.slice(0, 6).map((cat: any, i: number) => (
+                {datos.slice(0, 6).map((cat, i: number) => (
                     <div key={i} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2 min-w-0">
                             <div

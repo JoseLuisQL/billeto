@@ -83,8 +83,9 @@ export async function GET(req: Request) {
                 });
 
                 ejecutadas++;
-            } catch (err: any) {
-                errores.push(`${rec.name}: ${err.message}`);
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : "Error desconocido";
+                errores.push(`${rec.name}: ${message}`);
             }
         }
 
@@ -95,9 +96,10 @@ export async function GET(req: Request) {
             errores: errores.length > 0 ? errores : undefined,
             timestamp: ahora.toISOString(),
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Error interno";
         return NextResponse.json(
-            { ok: false, error: err.message },
+            { ok: false, error: message },
             { status: 500 }
         );
     }

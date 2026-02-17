@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
@@ -19,6 +19,7 @@ import {
     X,
 } from "lucide-react";
 import { listarCuentas, crearCuenta, actualizarCuenta, eliminarCuenta } from "@/lib/actions/accounts";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Tipos de cuenta disponibles.
@@ -36,30 +37,39 @@ const monedas = [
     { value: "EUR", label: "Euros (EUR)" },
 ];
 
+type CuentaItem = {
+    id: string;
+    name: string;
+    type: string;
+    currency: string;
+    currentBalance: number;
+};
+
 export default function AccountsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const [isPending, startTransition] = useTransition();
+    const { toast } = useToast();
 
-    const [cuentas, setCuentas] = useState<any[]>([]);
+    const [cuentas, setCuentas] = useState<CuentaItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modal, setModal] = useState<"crear" | "editar" | null>(null);
-    const [editando, setEditando] = useState<any>(null);
+    const [editando, setEditando] = useState<CuentaItem | null>(null);
     const [error, setError] = useState<string | null>(null);
-
-    // Cargar cuentas
-    useEffect(() => {
-        if (status === "authenticated") {
-            cargarCuentas();
-        }
-    }, [status]);
 
     const cargarCuentas = async () => {
         setCargando(true);
         const result = await listarCuentas();
-        setCuentas(result.cuentas);
+        setCuentas((result.cuentas as CuentaItem[]) || []);
         setCargando(false);
     };
+
+    // Cargar cuentas
+    useEffect(() => {
+        if (status === "authenticated") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void cargarCuentas();
+        }
+    }, [status]);
 
     const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -68,8 +78,10 @@ export default function AccountsPage() {
         const result = await crearCuenta(formData);
         if (result.error) {
             setError(result.error);
+            toast({ title: "No se pudo crear la cuenta", description: result.error, variant: "error" });
         } else {
             setModal(null);
+            toast({ title: "Cuenta creada", description: "La cuenta se registró correctamente.", variant: "success" });
             cargarCuentas();
         }
     };
@@ -77,13 +89,19 @@ export default function AccountsPage() {
     const handleEditar = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError(null);
+        if (!editando) {
+            toast({ title: "No hay cuenta seleccionada", variant: "error" });
+            return;
+        }
         const formData = new FormData(e.currentTarget);
         const result = await actualizarCuenta(editando.id, formData);
         if (result.error) {
             setError(result.error);
+            toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
         } else {
             setModal(null);
             setEditando(null);
+            toast({ title: "Cuenta actualizada", description: "Los cambios fueron guardados.", variant: "success" });
             cargarCuentas();
         }
     };
@@ -92,8 +110,9 @@ export default function AccountsPage() {
         if (!confirm("¿Estás seguro de eliminar esta cuenta?")) return;
         const result = await eliminarCuenta(id);
         if (result.error) {
-            alert(result.error);
+            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
         } else {
+            toast({ title: "Cuenta eliminada", description: "La cuenta fue eliminada correctamente.", variant: "success" });
             cargarCuentas();
         }
     };

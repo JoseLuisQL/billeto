@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
@@ -15,6 +16,33 @@ import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { CategoryPieChart } from "@/components/dashboard/CategoryPieChart";
 import { BalanceTrendChart } from "@/components/dashboard/BalanceTrendChart";
 
+type DashboardCuenta = {
+    id: string;
+    name: string;
+    type: string;
+    currentBalance: number;
+};
+
+type DashboardTx = {
+    id: string;
+    description: string;
+    amount: number;
+    type: string;
+    date: string;
+    account?: string;
+    category?: { icon?: string | null; name?: string; color?: string | null } | null;
+};
+
+type DashboardResumen = {
+    balanceTotal: number;
+    ingresosMes: number;
+    gastosMes: number;
+    totalTransacciones: number;
+    moneda: string;
+    cuentas: DashboardCuenta[];
+    ultimasTransacciones: DashboardTx[];
+};
+
 /**
  * Página principal del Dashboard.
  * Obtiene resumen financiero en tiempo real vía server action.
@@ -23,7 +51,7 @@ export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
 
-    const [resumen, setResumen] = useState<any>(null);
+    const [resumen, setResumen] = useState<DashboardResumen | null>(null);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
@@ -105,12 +133,15 @@ export default function DashboardPage() {
 
                 {/* Tarjetas de resumen */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {tarjetas.map((tarjeta) => {
+                    {tarjetas.map((tarjeta, index) => {
                         const Icon = tarjeta.icon;
                         return (
-                            <div
+                            <motion.div
                                 key={tarjeta.label}
-                                className={`rounded-xl border border-white/10 bg-zinc-900/50 p-5 ${cargando ? "animate-pulse" : ""
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2, delay: index * 0.04 }}
+                                className={`rounded-xl border border-white/10 bg-zinc-900/50 p-5 transition-colors hover:border-lime-400/20 ${cargando ? "animate-pulse" : ""
                                     }`}
                             >
                                 <div className="flex items-center justify-between mb-3">
@@ -122,7 +153,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                                 <p className="text-2xl font-bold text-white">{tarjeta.valor}</p>
-                            </div>
+                            </motion.div>
                         );
                     })}
                 </div>
@@ -163,7 +194,7 @@ export default function DashboardPage() {
                             <p className="text-sm text-muted-foreground">No tenés cuentas aún.</p>
                         ) : (
                             <div className="space-y-3">
-                                {resumen.cuentas.map((cuenta: any) => (
+                                {resumen?.cuentas?.map((cuenta) => (
                                     <div
                                         key={cuenta.id}
                                         className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50"
@@ -198,7 +229,7 @@ export default function DashboardPage() {
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            {resumen.ultimasTransacciones.map((tx: any) => (
+                            {resumen?.ultimasTransacciones?.map((tx) => (
                                 <div key={tx.id} className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-zinc-800/30">
                                     <div className="flex items-center gap-3">
                                         <span className="text-lg">{tx.category?.icon || "📋"}</span>

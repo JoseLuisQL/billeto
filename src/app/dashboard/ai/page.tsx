@@ -3,8 +3,9 @@
 import { useChat } from "@ai-sdk/react";
 import { TextStreamChatTransport } from "ai";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
-import { Send, Bot, User, Loader2, Sparkles } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, RotateCcw } from "lucide-react";
 import { useRef, useEffect, useState, useMemo } from "react";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Página del Asistente IA — Chat con tool-calling.
@@ -21,9 +22,11 @@ const quickSuggestions = [
 ];
 
 export default function AIAssistantPage() {
+    const { toast } = useToast();
     const transport = useMemo(() => new TextStreamChatTransport({ api: "/api/ai/chat" }), []);
     const { messages, sendMessage, status } = useChat({ transport });
     const [inputValue, setInputValue] = useState("");
+    const [lastPrompt, setLastPrompt] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isLoading = status === "streaming" || status === "submitted";
 
@@ -33,17 +36,36 @@ export default function AIAssistantPage() {
         }
     }, [messages]);
 
+    const submitPrompt = async (text: string) => {
+        if (!text.trim() || isLoading) return;
+        try {
+            setLastPrompt(text);
+            await sendMessage({ text });
+        } catch {
+            toast({
+                title: "No se pudo enviar el mensaje",
+                description: "Hubo un problema temporal con el chat. Probá nuevamente.",
+                variant: "error",
+            });
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputValue.trim() || isLoading) return;
         const text = inputValue.trim();
         setInputValue("");
-        await sendMessage({ text });
+        await submitPrompt(text);
     };
 
     const handleQuickAction = async (text: string) => {
         setInputValue("");
-        await sendMessage({ text });
+        await submitPrompt(text);
+    };
+
+    const handleRetry = async () => {
+        if (!lastPrompt || isLoading) return;
+        await submitPrompt(lastPrompt);
     };
 
     return (
@@ -64,11 +86,25 @@ export default function AIAssistantPage() {
                     <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                         <Sparkles className="w-3 h-3 text-lime-400" />
                         Gemini 2.0 Flash
+                        {lastPrompt && (
+                            <button
+                                onClick={handleRetry}
+                                disabled={isLoading}
+                                className="ml-2 inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-[11px] hover:bg-white/5 disabled:opacity-50"
+                            >
+                                <RotateCcw className="w-3 h-3" /> Reintentar
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Messages */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+                    {status === "error" && (
+                        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                            El chat se interrumpió inesperadamente. Podés reintentar el último mensaje.
+                        </div>
+                    )}
                     {messages.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center h-full">
                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-lime-400/20 to-emerald-500/20 border border-lime-400/20 flex items-center justify-center mb-6">
@@ -108,7 +144,7 @@ export default function AIAssistantPage() {
                                         }`}
                                 >
                                     {/* Render parts if present */}
-                                    {msg.parts?.map((part: any, idx: number) => {
+                                    {msg.parts?.map((part: { type: string; text?: string; toolInvocation?: { toolName: string; state: string; result?: unknown } }, idx: number) => {
                                         if (part.type === "text") {
                                             return (
                                                 <div key={idx} className="whitespace-pre-wrap">
@@ -116,7 +152,7 @@ export default function AIAssistantPage() {
                                                 </div>
                                             );
                                         }
-                                        if (part.type === "tool-invocation") {
+                                        if (part.type === "tool-invocation" && part.toolInvocation) {
                                             return (
                                                 <div
                                                     key={idx}

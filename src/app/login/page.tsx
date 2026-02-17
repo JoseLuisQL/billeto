@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { iniciarSesion } from "@/lib/actions/auth";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Página de Login con integración real de NextAuth.
@@ -17,6 +18,7 @@ import { iniciarSesion } from "@/lib/actions/auth";
  */
 export default function LoginPage() {
     const router = useRouter();
+    const { toast } = useToast();
     const [mostrarPassword, setMostrarPassword] = useState(false);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export default function LoginPage() {
 
         if (resultado.error) {
             setError(resultado.error);
+            toast({ title: "No se pudo iniciar sesión", description: resultado.error, variant: "error" });
             setCargando(false);
         } else {
             // Redirigir al dashboard después del login exitoso

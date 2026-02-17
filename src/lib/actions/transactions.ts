@@ -1,10 +1,11 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { PrismaClient } from "@prisma/client";
 import { aplicarReglas } from "@/lib/actions/rules";
+import { requireWorkspaceAccess } from "@/lib/security/access";
+import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -13,17 +14,8 @@ type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
  * Incluye lógica de actualización de balance de cuentas.
  */
 
-async function obtenerWorkspace() {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error("No autenticado");
-
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
-    });
-
-    if (!membership) throw new Error("Sin workspace asignado");
-    return { userId: session.user.id, workspace: membership.workspace };
+async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member") {
+    return requireWorkspaceAccess(minRole);
 }
 
 /**
@@ -44,7 +36,7 @@ export async function listarTransacciones(opciones?: {
         const pageSize = opciones?.pageSize ?? 20;
 
         // Construir filtros
-        const where: any = {
+        const where: Record<string, unknown> = {
             workspaceId: workspace.id,
             deletedAt: null,
         };
@@ -53,9 +45,10 @@ export async function listarTransacciones(opciones?: {
         if (opciones?.categoryId) where.categoryId = opciones.categoryId;
         if (opciones?.type) where.type = opciones.type;
         if (opciones?.from || opciones?.to) {
-            where.date = {};
-            if (opciones?.from) where.date.gte = new Date(opciones.from);
-            if (opciones?.to) where.date.lte = new Date(opciones.to);
+            const dateFilter: { gte?: Date; lte?: Date } = {};
+            if (opciones?.from) dateFilter.gte = new Date(opciones.from);
+            if (opciones?.to) dateFilter.lte = new Date(opciones.to);
+            where.date = dateFilter;
         }
 
         const [transacciones, total] = await Promise.all([
@@ -83,7 +76,7 @@ export async function listarTransacciones(opciones?: {
             pageSize,
             totalPages: Math.ceil(total / pageSize),
         };
-    } catch (error) {
+    } catch {
         return { error: "Error al obtener transacciones", transacciones: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
 }
@@ -94,7 +87,13 @@ export async function listarTransacciones(opciones?: {
  */
 export async function crearTransaccion(formData: FormData) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "transactions:create:user",
+            key: userId,
+            limit: 25,
+            windowMs: 60_000,
+        });
 
         const accountId = formData.get("accountId") as string;
         let categoryId = (formData.get("categoryId") as string) || null;
@@ -174,6 +173,9 @@ export async function crearTransaccion(formData: FormData) {
         revalidatePath("/dashboard");
         return { success: true, transaccion: resultado };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         console.error("Error al crear transacción:", error);
         return { error: "Error al crear la transacción." };
     }
@@ -184,7 +186,13 @@ export async function crearTransaccion(formData: FormData) {
  */
 export async function eliminarTransaccion(id: string) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "transactions:delete:user",
+            key: userId,
+            limit: 20,
+            windowMs: 60_000,
+        });
 
         const transaccion = await prisma.transaction.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -237,6 +245,9 @@ export async function eliminarTransaccion(id: string) {
         revalidatePath("/dashboard");
         return { success: true };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al eliminar la transacción." };
     }
 }
@@ -258,10 +269,7 @@ export async function obtenerResumenDashboard() {
             where: { workspaceId: workspace.id, deletedAt: null },
         });
 
-        const balanceTotal = cuentas.reduce(
-            (sum: number, acc: { currentBalance: any }) => sum + Number(acc.currentBalance),
-            0
-        );
+        const balanceTotal = cuentas.reduce((sum, acc) => sum + Number(acc.currentBalance), 0);
 
         // Ingresos y gastos del mes
         const transaccionesMes = await prisma.transaction.findMany({
@@ -315,7 +323,7 @@ export async function obtenerResumenDashboard() {
                 category: tx.category,
             })),
         };
-    } catch (error) {
+    } catch {
         return {
             balanceTotal: 0,
             ingresosMes: 0,

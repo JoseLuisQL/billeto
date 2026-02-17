@@ -17,8 +17,10 @@ import { obtenerActividadMensual } from "@/lib/actions/charts";
  * Gráfico de barras de actividad diaria del mes actual.
  * Muestra ingresos vs gastos por día.
  */
+type ActividadItem = { dia: string; ingresos: number; gastos: number };
+
 export function ActivityChart() {
-    const [datos, setDatos] = useState<any[]>([]);
+    const [datos, setDatos] = useState<ActividadItem[]>([]);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {

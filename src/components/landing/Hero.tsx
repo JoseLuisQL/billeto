@@ -114,7 +114,7 @@ export function Hero() {
                                 <motion.div
                                     key={i}
                                     initial={{ height: 0 }}
-                                    animate={{ height: `${20 + Math.random() * 80}%` }}
+                                    animate={{ height: `${25 + ((i * 17) % 70)}%` }}
                                     transition={{ delay: 0.8 + i * 0.05, duration: 0.5, ease: "easeOut" }}
                                     className="flex-1 rounded-t-sm bg-gradient-to-t from-lime-500/40 to-lime-400/80"
                                 />

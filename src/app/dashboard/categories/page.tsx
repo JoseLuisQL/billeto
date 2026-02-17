@@ -15,6 +15,7 @@ import {
     actualizarCategoria,
     eliminarCategoria,
 } from "@/lib/actions/categories";
+import { useToast } from "@/components/ui/toast";
 
 /**
  * Iconos disponibles para categorías.
@@ -29,29 +30,41 @@ const coloresDisponibles = [
     "#F59E0B", "#06B6D4", "#EC4899", "#71717A",
 ];
 
+type CategoriaItem = {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    type: "expense" | "income" | "both";
+};
+
 export default function CategoriesPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
+    const { toast } = useToast();
 
-    const [categorias, setCategorias] = useState<any[]>([]);
+    const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modal, setModal] = useState<"crear" | "editar" | null>(null);
-    const [editando, setEditando] = useState<any>(null);
+    const [editando, setEditando] = useState<CategoriaItem | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [iconSeleccionado, setIconSeleccionado] = useState("📁");
     const [colorSeleccionado, setColorSeleccionado] = useState("#71717A");
     const [filtroTipo, setFiltroTipo] = useState<"all" | "expense" | "income">("all");
 
-    useEffect(() => {
-        if (status === "authenticated") cargarCategorias();
-    }, [status]);
-
     const cargarCategorias = async () => {
         setCargando(true);
         const result = await listarCategorias();
-        setCategorias(result.categorias);
+        setCategorias((result.categorias as CategoriaItem[]) || []);
         setCargando(false);
     };
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void cargarCategorias();
+        }
+    }, [status]);
 
     const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -60,26 +73,47 @@ export default function CategoriesPage() {
         formData.set("icon", iconSeleccionado);
         formData.set("color", colorSeleccionado);
         const result = await crearCategoria(formData);
-        if (result.error) setError(result.error);
-        else { setModal(null); cargarCategorias(); }
+        if (result.error) {
+            setError(result.error);
+            toast({ title: "No se pudo crear la categoría", description: result.error, variant: "error" });
+        } else {
+            setModal(null);
+            toast({ title: "Categoría creada", description: "La categoría se guardó correctamente.", variant: "success" });
+            cargarCategorias();
+        }
     };
 
     const handleEditar = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError(null);
+        if (!editando) {
+            toast({ title: "No hay categoría seleccionada", variant: "error" });
+            return;
+        }
         const formData = new FormData(e.currentTarget);
         formData.set("icon", iconSeleccionado);
         formData.set("color", colorSeleccionado);
         const result = await actualizarCategoria(editando.id, formData);
-        if (result.error) setError(result.error);
-        else { setModal(null); setEditando(null); cargarCategorias(); }
+        if (result.error) {
+            setError(result.error);
+            toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
+        } else {
+            setModal(null);
+            setEditando(null);
+            toast({ title: "Categoría actualizada", description: "Los cambios fueron guardados.", variant: "success" });
+            cargarCategorias();
+        }
     };
 
     const handleEliminar = async (id: string) => {
         if (!confirm("¿Eliminar esta categoría?")) return;
         const result = await eliminarCategoria(id);
-        if (result.error) alert(result.error);
-        else cargarCategorias();
+        if (result.error) {
+            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
+        } else {
+            toast({ title: "Categoría eliminada", description: "La categoría fue eliminada correctamente.", variant: "success" });
+            cargarCategorias();
+        }
     };
 
     const categoriasFiltradas = filtroTipo === "all"

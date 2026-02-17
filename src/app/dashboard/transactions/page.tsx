@@ -25,14 +25,28 @@ import {
 } from "@/lib/actions/transactions";
 import { listarCuentas } from "@/lib/actions/accounts";
 import { listarCategorias } from "@/lib/actions/categories";
+import { useToast } from "@/components/ui/toast";
+
+type TransactionItem = {
+    id: string;
+    date: string;
+    description: string;
+    type: "income" | "expense";
+    amountOriginal: number;
+    account?: { name?: string; currency?: string };
+    category?: { name?: string; icon?: string } | null;
+};
+
+type SelectItem = { id: string; name: string; currency?: string; icon?: string };
 
 export default function TransactionsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
+    const { toast } = useToast();
 
-    const [transacciones, setTransacciones] = useState<any[]>([]);
-    const [cuentas, setCuentas] = useState<any[]>([]);
-    const [categorias, setCategorias] = useState<any[]>([]);
+    const [transacciones, setTransacciones] = useState<TransactionItem[]>([]);
+    const [cuentas, setCuentas] = useState<SelectItem[]>([]);
+    const [categorias, setCategorias] = useState<SelectItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modal, setModal] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -43,10 +57,6 @@ export default function TransactionsPage() {
     // Filtros
     const [filtroTipo, setFiltroTipo] = useState<string>("");
     const [filtroCuenta, setFiltroCuenta] = useState<string>("");
-
-    useEffect(() => {
-        if (status === "authenticated") cargarDatos();
-    }, [status, page, filtroTipo, filtroCuenta]);
 
     const cargarDatos = async () => {
         setCargando(true);
@@ -61,13 +71,20 @@ export default function TransactionsPage() {
             listarCategorias(),
         ]);
 
-        setTransacciones(txResult.transacciones);
+        setTransacciones((txResult.transacciones as TransactionItem[]) || []);
         setTotalPages(txResult.totalPages);
         setTotal(txResult.total);
-        setCuentas(cuentasResult.cuentas);
-        setCategorias(categoriasResult.categorias);
+        setCuentas((cuentasResult.cuentas as SelectItem[]) || []);
+        setCategorias((categoriasResult.categorias as SelectItem[]) || []);
         setCargando(false);
     };
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            void cargarDatos();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status, page, filtroTipo, filtroCuenta]);
 
     const handleCrear = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -76,9 +93,11 @@ export default function TransactionsPage() {
         const result = await crearTransaccion(formData);
         if (result.error) {
             setError(result.error);
+            toast({ title: "No se pudo crear la transacción", description: result.error, variant: "error" });
         } else {
             setModal(false);
             setPage(1);
+            toast({ title: "Transacción registrada", description: "La transacción fue creada correctamente.", variant: "success" });
             cargarDatos();
         }
     };
@@ -86,8 +105,12 @@ export default function TransactionsPage() {
     const handleEliminar = async (id: string) => {
         if (!confirm("¿Eliminar esta transacción? El balance de la cuenta se revertirá.")) return;
         const result = await eliminarTransaccion(id);
-        if (result.error) alert(result.error);
-        else cargarDatos();
+        if (result.error) {
+            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
+        } else {
+            toast({ title: "Transacción eliminada", description: "Se revirtió el balance correctamente.", variant: "success" });
+            cargarDatos();
+        }
     };
 
     const formatearMoneda = (monto: number, currency?: string) => {

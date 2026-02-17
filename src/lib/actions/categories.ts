@@ -1,25 +1,17 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { requireWorkspaceAccess } from "@/lib/security/access";
+import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 
 /**
  * Server Actions para Categorías.
  * CRUD completo con validación de workspace y auditoría.
  */
 
-async function obtenerWorkspace() {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error("No autenticado");
-
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
-    });
-
-    if (!membership) throw new Error("Sin workspace asignado");
-    return { userId: session.user.id, workspace: membership.workspace };
+async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member") {
+    return requireWorkspaceAccess(minRole);
 }
 
 /**
@@ -35,7 +27,7 @@ export async function listarCategorias() {
         });
 
         return { categorias };
-    } catch (error) {
+    } catch {
         return { error: "Error al obtener categorías", categorias: [] };
     }
 }
@@ -45,7 +37,13 @@ export async function listarCategorias() {
  */
 export async function crearCategoria(formData: FormData) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "categories:create:user",
+            key: userId,
+            limit: 20,
+            windowMs: 60_000,
+        });
 
         const name = formData.get("name") as string;
         const icon = (formData.get("icon") as string) || "📁";
@@ -89,6 +87,9 @@ export async function crearCategoria(formData: FormData) {
         revalidatePath("/dashboard/categories");
         return { success: true, categoria };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al crear la categoría." };
     }
 }
@@ -98,7 +99,13 @@ export async function crearCategoria(formData: FormData) {
  */
 export async function actualizarCategoria(id: string, formData: FormData) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "categories:update:user",
+            key: userId,
+            limit: 30,
+            windowMs: 60_000,
+        });
 
         const name = formData.get("name") as string;
         const icon = formData.get("icon") as string;
@@ -148,6 +155,9 @@ export async function actualizarCategoria(id: string, formData: FormData) {
         revalidatePath("/dashboard/categories");
         return { success: true, categoria: actualizada };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al actualizar la categoría." };
     }
 }
@@ -157,7 +167,13 @@ export async function actualizarCategoria(id: string, formData: FormData) {
  */
 export async function eliminarCategoria(id: string) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "categories:delete:user",
+            key: userId,
+            limit: 10,
+            windowMs: 60_000,
+        });
 
         const categoria = await prisma.category.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -186,6 +202,9 @@ export async function eliminarCategoria(id: string) {
         revalidatePath("/dashboard/categories");
         return { success: true };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al eliminar la categoría." };
     }
 }

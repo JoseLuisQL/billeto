@@ -15,8 +15,10 @@ import { obtenerTendenciaBalance } from "@/lib/actions/charts";
 /**
  * Gráfico de área con la tendencia de balance de los últimos 6 meses.
  */
+type BalanceTrendItem = { mes: string; balance: number };
+
 export function BalanceTrendChart() {
-    const [datos, setDatos] = useState<any[]>([]);
+    const [datos, setDatos] = useState<BalanceTrendItem[]>([]);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {

@@ -1,8 +1,9 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { requireWorkspaceAccess } from "@/lib/security/access";
+import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 
 /**
  * Server Actions para Cuentas Financieras.
@@ -13,18 +14,8 @@ import { revalidatePath } from "next/cache";
  * Obtener el workspace del usuario autenticado.
  * Helper compartido entre todas las acciones.
  */
-async function obtenerWorkspace() {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error("No autenticado");
-
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
-    });
-
-    if (!membership) throw new Error("Sin workspace asignado");
-
-    return { userId: session.user.id, workspace: membership.workspace };
+async function obtenerWorkspace(minRole: "owner" | "admin" | "member" = "member") {
+    return requireWorkspaceAccess(minRole);
 }
 
 /**
@@ -43,7 +34,7 @@ export async function listarCuentas() {
         });
 
         return {
-            cuentas: cuentas.map((c: any) => ({
+            cuentas: cuentas.map((c) => ({
                 ...c,
                 initialBalance: Number(c.initialBalance),
                 currentBalance: Number(c.currentBalance),
@@ -52,7 +43,7 @@ export async function listarCuentas() {
                 deletedAt: c.deletedAt?.toISOString() || null,
             })),
         };
-    } catch (error) {
+    } catch {
         return { error: "Error al obtener cuentas", cuentas: [] };
     }
 }
@@ -62,7 +53,13 @@ export async function listarCuentas() {
  */
 export async function crearCuenta(formData: FormData) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "accounts:create:user",
+            key: userId,
+            limit: 15,
+            windowMs: 60_000,
+        });
 
         const name = formData.get("name") as string;
         const type = (formData.get("type") as string) || "cash";
@@ -112,6 +109,9 @@ export async function crearCuenta(formData: FormData) {
         revalidatePath("/dashboard");
         return { success: true, cuenta };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al crear la cuenta." };
     }
 }
@@ -121,7 +121,13 @@ export async function crearCuenta(formData: FormData) {
  */
 export async function actualizarCuenta(id: string, formData: FormData) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "accounts:update:user",
+            key: userId,
+            limit: 30,
+            windowMs: 60_000,
+        });
 
         const name = formData.get("name") as string;
         const type = formData.get("type") as string;
@@ -186,6 +192,9 @@ export async function actualizarCuenta(id: string, formData: FormData) {
         revalidatePath("/dashboard/accounts");
         return { success: true, cuenta: actualizada };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al actualizar la cuenta." };
     }
 }
@@ -195,7 +204,13 @@ export async function actualizarCuenta(id: string, formData: FormData) {
  */
 export async function eliminarCuenta(id: string) {
     try {
-        const { workspace, userId } = await obtenerWorkspace();
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "accounts:delete:user",
+            key: userId,
+            limit: 10,
+            windowMs: 60_000,
+        });
 
         const cuenta = await prisma.account.findFirst({
             where: { id, workspaceId: workspace.id, deletedAt: null },
@@ -236,6 +251,9 @@ export async function eliminarCuenta(id: string) {
         revalidatePath("/dashboard");
         return { success: true };
     } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
         return { error: "Error al eliminar la cuenta." };
     }
 }

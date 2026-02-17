@@ -1,349 +1,426 @@
 import { google } from "@ai-sdk/google";
 import { streamText, tool, convertToModelMessages } from "ai";
-import { z } from "zod"; // Standard import
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { aplicarReglas } from "@/lib/actions/rules";
+import { checkApiRateLimit } from "@/lib/security/api-rate-limit";
+import { requireWorkspaceAccess } from "@/lib/security/access";
 
-/**
- * AI Chat streaming endpoint.
- * Uses Vercel AI SDK v6 + Google Gemini with tool-calling
- * that mirrors the xMCP tool catalog.
- * Updated for Agentic Behavior (maxSteps: 5) and strict Types.
- */
+type ToolErrorResult = {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    retryable: boolean;
+  };
+};
+
+type ToolCatchError = Error & { message: string };
+
+const TOOL_TIMEOUT_MS = 12_000;
+const MAX_TOOL_REPEAT = 2;
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function toToolError(code: string, message: string, retryable = false): ToolErrorResult {
+  return {
+    success: false,
+    error: { code, message, retryable },
+  };
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
+  ]);
+}
+
+function makeToolGuard() {
+  const calls = new Map<string, number>();
+
+  return (toolName: string, args: unknown) => {
+    const signature = `${toolName}:${JSON.stringify(args)}`;
+    const next = (calls.get(signature) ?? 0) + 1;
+    calls.set(signature, next);
+
+    if (next > MAX_TOOL_REPEAT) {
+      throw new Error("Se detectó un posible loop de herramientas. Reformulá la consulta o agregá más contexto.");
+    }
+  };
+}
+
 export async function POST(req: Request) {
+  try {
     const session = await auth();
     if (!session?.user?.id) {
-        return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", { status: 401 });
     }
 
-    const membership = await prisma.membership.findFirst({
-        where: { userId: session.user.id },
-        include: { workspace: true },
+    const access = await requireWorkspaceAccess("member");
+    const workspaceId = access.workspace.id;
+    const userId = access.userId;
+
+    const rateLimitResponse = checkApiRateLimit({
+      bucket: "api:ai-chat:user",
+      key: `${userId}:${workspaceId}`,
+      limit: 40,
+      windowMs: 60_000,
     });
-    if (!membership) {
-        return new Response("No workspace", { status: 403 });
-    }
+    if (rateLimitResponse) return rateLimitResponse;
 
-    const workspaceId = membership.workspace.id;
-    const userId = session.user.id;
-    const { messages } = await req.json();
-
-    const currentDate = new Date().toLocaleDateString("es-PE", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
-
-    // Instructions using single quotes for tool names to avoid template string interpolation issues
-    const systemPrompt = `Eres Billeto, un asistente financiero experto.
-Tu objetivo es ACTUAR, no solo conversar.
-Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
-
-REGLAS DE ORO:
-1. **ACCIÓN INMEDIATA**: Si el usuario menciona un gasto o ingreso, ¡REGÍSTRALO! No pidas confirmación.
-2. **INFERENCIA**:
-   - Si no dice cuenta, ASUME "Efectivo" (búscala en 'accounts_list'). Si no existe, usa la primera cuenta disponible.
-   - Si no dice categoría, usa 'categories_list' para encontrar la mejor coincidencia (ej. "taxi" -> "Transporte").
-3. **NO HABLES DE TUS PLANES**: No digas "Voy a buscar...", HAZLO. Ejecuta las herramientas.
-
-EJEMPLOS DE COMPORTAMIENTO ESPERADO:
-
-Usuario: "Gasté 15 soles en menú"
-Tú (Pensamiento interno): "Necesito categoría y cuenta. Llamo a tools."
-Tool Call: 'categories_list'
-Tool Call: 'accounts_list'
-... (recibes datos) ...
-Tú (Pensamiento interno): "Encontré categoría 'Alimentación' y cuenta 'Efectivo'. Creo la transacción."
-Tool Call: 'transactions_create({ amount: 15, description: "Menú", category_id: "...", account_id: "..." })'
-Tú (Respuesta final): "Listo 🍛. Registré S/15 en Alimentación (Efectivo)."
-
-Usuario: "Me pagaron 100"
-Tú: Calling 'accounts_list'... found 'Banco BCP'... Calling 'transactions_create({ amount: 100, type: 'income', account_id: '...', description: 'Ingreso' })'.
-Tú: "Genial 🤑. Registré un ingreso de S/100 en tu Banco."
-
-Respondé siempre en español, sé breve y eficiente.`;
-
-    // Ensure messages is an array and convert to ModelMessage[]
-    // convertToModelMessages returns a Promise in recent versions, so we await it.
-    const coreMessages = Array.isArray(messages) ? messages : [];
+    const body = await req.json();
+    const coreMessages = Array.isArray(body?.messages) ? body.messages : [];
     const modelMessages = await convertToModelMessages(coreMessages);
 
+    const currentDate = new Date().toLocaleDateString("es-PE", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const guardTool = makeToolGuard();
+
+    const systemPrompt = `Eres Billeto, un asistente financiero experto.
+Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
+
+Reglas operativas:
+1) Respondé en español, de forma breve y clara.
+2) Usá herramientas cuando aporten valor real.
+3) Si faltan datos críticos para mutar (monto, descripción o tipo), pedí aclaración antes de ejecutar.
+4) Nunca inventes IDs ni datos de cuenta/categoría.
+5) Si hay error de herramienta, explicalo y propone el siguiente paso.
+`;
+
     const result = streamText({
-        model: google("gemini-2.0-flash"),
-        system: systemPrompt,
-        messages: modelMessages,
-        // @ts-ignore - maxSteps is available in newer AI SDK versions but types might be lagging
-        maxSteps: 5, // Allow up to 5 steps for tool roundtrips (Agentic behavior)
-        tools: {
-            transactions_create: tool({
-                description: "Crear una nueva transacción financiera (gasto o ingreso)",
-                inputSchema: z.object({
-                    amount: z.number().describe("Monto de la transacción"),
-                    description: z.string().describe("Descripción"),
-                    type: z.string().describe("Tipo: income o expense. Por defecto expense"),
-                    category_id: z.string().optional().describe("ID de categoría"),
-                    account_id: z.string().optional().describe("ID de cuenta"),
-                    date: z.string().optional().describe("Fecha ISO-8601 (YYYY-MM-DD)"),
-                    request_id: z.string().optional().describe("ID idempotente para evitar duplicados"),
-                }),
-                execute: async ({ amount, description, type, category_id, account_id, date, request_id }) => {
-                    console.log("🔧 Tool Call: transactions_create", { amount, description, account_id, request_id });
-                    try {
-                        // 0. Idempotencia
-                        if (request_id) {
-                            const existing = await prisma.transaction.findFirst({
-                                where: { workspaceId, requestId: request_id, deletedAt: null },
-                                include: { category: true, account: true },
-                            });
+      model: google("gemini-2.0-flash"),
+      system: systemPrompt,
+      messages: modelMessages,
+      // @ts-expect-error maxSteps está soportado por runtime del SDK, pero no en tipos actuales del proyecto.
+      maxSteps: 3,
+      tools: {
+        transactions_create: tool({
+          description: "Crear una nueva transacción financiera (gasto o ingreso)",
+          inputSchema: z.object({
+            amount: z.number().describe("Monto de la transacción"),
+            description: z.string().describe("Descripción"),
+            type: z.enum(["income", "expense"]).default("expense"),
+            category_id: z.string().optional().describe("ID de categoría"),
+            account_id: z.string().optional().describe("ID de cuenta"),
+            date: z.string().optional().describe("Fecha ISO-8601 (YYYY-MM-DD)"),
+            request_id: z.string().optional().describe("ID idempotente para evitar duplicados"),
+          }),
+          execute: async (args) => {
+            const startedAt = Date.now();
+            try {
+              guardTool("transactions_create", args);
 
-                            if (existing) {
-                                return {
-                                    success: true,
-                                    message: `Transacción ya registrada previamente (${request_id}).`,
-                                    transaction: {
-                                        id: existing.id,
-                                        description: existing.description,
-                                        amount: existing.amountBase,
-                                        accountName: existing.account.name,
-                                        categoryName: existing.category?.name || "Sin categoría",
-                                    },
-                                    deduplicated: true,
-                                };
-                            }
-                        }
+              if (!args.amount || !args.description?.trim()) {
+                return toToolError("missing_critical_data", "Falta monto o descripción para registrar la transacción.");
+              }
 
-                        // 1. Account Fallback Logic
-                        let finalAccountId = account_id;
-                        if (!finalAccountId) {
-                            console.log("  - Finding fallback account...");
-                            const accounts = await prisma.account.findMany({
-                                where: { workspaceId, deletedAt: null },
-                                orderBy: { name: 'asc' }
-                            });
+              return await withTimeout((async () => {
+                if (args.request_id) {
+                  const existing = await prisma.transaction.findFirst({
+                    where: { workspaceId, requestId: args.request_id, deletedAt: null },
+                    include: { category: true, account: true },
+                  });
 
-                            if (accounts.length === 0) {
-                                console.log("  - No accounts found!");
-                                return { success: false, message: "No hay cuentas registradas en el workspace." };
-                            }
-
-                            const cashAccount = accounts.find(a =>
-                                a.normalizedName === "efectivo" ||
-                                a.name.toLowerCase().includes("efectivo") ||
-                                a.name.toLowerCase().includes("cash")
-                            );
-
-                            finalAccountId = cashAccount ? cashAccount.id : accounts[0].id;
-                            console.log("  - Selected account:", finalAccountId);
-                        }
-
-                        // 2. Balance update + create transaction (atómico)
-                        const amountNum = Number(amount);
-                        const increment = type === "income" ? amountNum : -amountNum;
-
-                        const tx = await prisma.$transaction(async (db) => {
-                            const updatedAccount = await db.account.updateMany({
-                                where: { id: finalAccountId as string, workspaceId, deletedAt: null },
-                                data: { currentBalance: { increment } },
-                            });
-
-                            if (updatedAccount.count === 0) {
-                                throw new Error("Cuenta no encontrada o sin permisos");
-                            }
-
-                            return db.transaction.create({
-                                data: {
-                                    amountOriginal: amountNum,
-                                    amountBase: amountNum,
-                                    currencyOriginal: "PEN",
-                                    baseCurrency: "PEN",
-                                    description,
-                                    type: type as "income" | "expense",
-                                    date: date ? new Date(date) : new Date(),
-                                    categoryId: category_id,
-                                    accountId: finalAccountId as string,
-                                    workspaceId,
-                                    requestId: request_id,
-                                },
-                                include: { category: true, account: true }
-                            });
-                        });
-                        console.log("  - Transaction created:", tx.id);
-
-                        // 4. Rules application (Auto-categorization)
-                        if (!category_id) {
-                            console.log("  - Applying rules...");
-                            const autoCatId = await aplicarReglas(description);
-                            if (autoCatId) {
-                                console.log("  - Rule match! Category:", autoCatId);
-                                await prisma.transaction.update({
-                                    where: { id: tx.id },
-                                    data: { categoryId: autoCatId }
-                                });
-                                // Update local category name for response
-                                const cat = await prisma.category.findUnique({ where: { id: autoCatId } });
-                                if (cat && tx.category) tx.category.name = cat.name;
-                            }
-                        }
-
-                        return {
-                            success: true,
-                            message: `Transacción registrada: ${description} (${type === 'income' ? '+' : '-'}S/${amount}).`,
-                            transaction: {
-                                id: tx.id,
-                                description: tx.description,
-                                amount: tx.amountBase,
-                                accountName: tx.account.name,
-                                categoryName: tx.category?.name || "Sin categoría"
-                            }
-                        };
-                    } catch (error: any) {
-                        console.error("❌ Error in transactions_create:", error);
-                        return { success: false, error: error.message };
-                    }
-                },
-            }),
-
-            transactions_list: tool({
-                description: "Listar transacciones recientes con filtros opcionales",
-                inputSchema: z.object({
-                    limit: z.number().optional().describe("E.g. 10"),
-                    type: z.string().optional().describe("income/expense"),
-                    search: z.string().optional().describe("Búsqueda texto"),
-                    category_id: z.string().optional(),
-                    account_id: z.string().optional(),
-                }),
-                execute: async ({ limit = 10, type, search, category_id, account_id }) => {
-                    const where: any = { workspaceId };
-                    if (type) where.type = type;
-                    if (search) where.description = { contains: search, mode: "insensitive" };
-                    if (category_id) where.categoryId = category_id;
-                    if (account_id) where.accountId = account_id;
-
-                    const txs = await prisma.transaction.findMany({
-                        where,
-                        orderBy: { date: "desc" },
-                        take: limit,
-                        include: { category: true, account: true },
-                    });
-
+                  if (existing) {
                     return {
-                        count: txs.length,
-                        transactions: txs.map(t => ({
-                            id: t.id,
-                            date: t.date.toISOString().split("T")[0],
-                            description: t.description,
-                            amount: t.amountBase,
-                            type: t.type,
-                            category: t.category?.name || "Sin categoría",
-                            account: t.account?.name || "Sin cuenta"
-                        }))
+                      success: true,
+                      message: `Transacción ya registrada previamente (${args.request_id}).`,
+                      transaction: {
+                        id: existing.id,
+                        description: existing.description,
+                        amount: existing.amountBase,
+                        accountName: existing.account.name,
+                        categoryName: existing.category?.name || "Sin categoría",
+                      },
+                      deduplicated: true,
                     };
-                },
-            }),
+                  }
+                }
 
-            accounts_list: tool({
-                description: "Listar todas las cuentas y sus balances actuales",
-                inputSchema: z.object({}),
-                execute: async () => {
-                    const accounts = await prisma.account.findMany({
-                        where: { workspaceId },
-                        orderBy: { name: "asc" },
+                let finalAccountId = args.account_id;
+                if (!finalAccountId) {
+                  const accounts = await prisma.account.findMany({
+                    where: { workspaceId, deletedAt: null },
+                    orderBy: { name: "asc" },
+                  });
+
+                  if (accounts.length === 0) {
+                    return toToolError("account_not_found", "No hay cuentas registradas en el workspace.");
+                  }
+
+                  const cashAccount = accounts.find(
+                    (a) =>
+                      a.normalizedName === "efectivo" ||
+                      a.name.toLowerCase().includes("efectivo") ||
+                      a.name.toLowerCase().includes("cash")
+                  );
+
+                  finalAccountId = cashAccount ? cashAccount.id : accounts[0].id;
+                }
+
+                const amountNum = Number(args.amount);
+                const increment = args.type === "income" ? amountNum : -amountNum;
+
+                const tx = await prisma.$transaction(async (db) => {
+                  const updatedAccount = await db.account.updateMany({
+                    where: { id: finalAccountId as string, workspaceId, deletedAt: null },
+                    data: { currentBalance: { increment } },
+                  });
+
+                  if (updatedAccount.count === 0) {
+                    throw new Error("Cuenta no encontrada o sin permisos");
+                  }
+
+                  return db.transaction.create({
+                    data: {
+                      amountOriginal: amountNum,
+                      amountBase: amountNum,
+                      currencyOriginal: "PEN",
+                      baseCurrency: "PEN",
+                      description: args.description,
+                      type: args.type,
+                      date: args.date ? new Date(args.date) : new Date(),
+                      categoryId: args.category_id,
+                      accountId: finalAccountId as string,
+                      workspaceId,
+                      requestId: args.request_id,
+                    },
+                    include: { category: true, account: true },
+                  });
+                });
+
+                if (!args.category_id) {
+                  const autoCatId = await aplicarReglas(args.description);
+                  if (autoCatId) {
+                    await prisma.transaction.update({
+                      where: { id: tx.id },
+                      data: { categoryId: autoCatId },
                     });
-                    return accounts.map(a => ({
-                        id: a.id,
-                        name: a.name,
-                        currency: a.currency,
-                        balance: a.currentBalance
-                    }));
-                },
-            }),
+                    const cat = await prisma.category.findUnique({ where: { id: autoCatId } });
+                    if (cat && tx.category) tx.category.name = cat.name;
+                  }
+                }
 
-            categories_list: tool({
-                description: "Listar todas las categorías disponibles para gastos e ingresos",
-                inputSchema: z.object({}),
-                execute: async () => {
-                    const categories = await prisma.category.findMany({
-                        where: { workspaceId },
-                        orderBy: { name: "asc" },
-                    });
-                    return categories.map(c => ({
-                        id: c.id,
-                        name: c.name,
-                        type: c.type
-                    }));
-                },
-            }),
+                return {
+                  success: true,
+                  message: `Transacción registrada: ${args.description} (${args.type === "income" ? "+" : "-"}S/${args.amount}).`,
+                  transaction: {
+                    id: tx.id,
+                    description: tx.description,
+                    amount: tx.amountBase,
+                    accountName: tx.account.name,
+                    categoryName: tx.category?.name || "Sin categoría",
+                  },
+                };
+              })(), TOOL_TIMEOUT_MS, "Timeout al crear la transacción");
+            } catch (error: unknown) {
+              const err = error as ToolCatchError;
+              console.error("chat.tool.transactions_create", {
+                workspaceId,
+                userId,
+                durationMs: Date.now() - startedAt,
+                message: err?.message,
+              });
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error al crear transacción"), true);
+            }
+          },
+        }),
 
-            analytics_summary: tool({
-                description: "Obtener resumen financiero del mes actual (ingresos, gastos, balance neto)",
-                inputSchema: z.object({
-                    month: z.number().optional().describe("1-12"),
-                    year: z.number().optional().describe("YYYY"),
+        transactions_list: tool({
+          description: "Listar transacciones recientes con filtros opcionales",
+          inputSchema: z.object({
+            limit: z.number().optional().describe("E.g. 10"),
+            type: z.string().optional().describe("income/expense"),
+            search: z.string().optional().describe("Búsqueda texto"),
+            category_id: z.string().optional(),
+            account_id: z.string().optional(),
+          }),
+          execute: async (args) => {
+            try {
+              guardTool("transactions_list", args);
+
+              const where: Record<string, unknown> = { workspaceId };
+              if (args.type) where.type = args.type;
+              if (args.search) where.description = { contains: args.search, mode: "insensitive" };
+              if (args.category_id) where.categoryId = args.category_id;
+              if (args.account_id) where.accountId = args.account_id;
+
+              const txs = await withTimeout(
+                prisma.transaction.findMany({
+                  where,
+                  orderBy: { date: "desc" },
+                  take: args.limit ?? 10,
+                  include: { category: true, account: true },
                 }),
-                execute: async ({ month, year }) => {
-                    const now = new Date();
-                    const m = month || now.getMonth() + 1;
-                    const y = year || now.getFullYear();
+                TOOL_TIMEOUT_MS,
+                "Timeout al listar transacciones"
+              );
 
-                    const start = new Date(y, m - 1, 1);
-                    const end = new Date(y, m, 0);
+              return {
+                success: true,
+                count: txs.length,
+                transactions: txs.map((t) => ({
+                  id: t.id,
+                  date: t.date.toISOString().split("T")[0],
+                  description: t.description,
+                  amount: t.amountBase,
+                  type: t.type,
+                  category: t.category?.name || "Sin categoría",
+                  account: t.account?.name || "Sin cuenta",
+                })),
+              };
+            } catch (error: unknown) {
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error al listar transacciones"), true);
+            }
+          },
+        }),
 
-                    const aggs = await prisma.transaction.groupBy({
-                        by: ["type"],
-                        where: {
-                            workspaceId,
-                            date: { gte: start, lte: end },
-                        },
-                        _sum: { amountBase: true },
-                    });
+        accounts_list: tool({
+          description: "Listar todas las cuentas y sus balances actuales",
+          inputSchema: z.object({}),
+          execute: async (args) => {
+            try {
+              guardTool("accounts_list", args);
+              const accounts = await withTimeout(
+                prisma.account.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
+                TOOL_TIMEOUT_MS,
+                "Timeout al listar cuentas"
+              );
+              return {
+                success: true,
+                accounts: accounts.map((a) => ({
+                  id: a.id,
+                  name: a.name,
+                  currency: a.currency,
+                  balance: a.currentBalance,
+                })),
+              };
+            } catch (error: unknown) {
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error al listar cuentas"), true);
+            }
+          },
+        }),
 
-                    const income = Number(aggs.find(a => a.type === "income")?._sum.amountBase || 0);
-                    const expense = Number(aggs.find(a => a.type === "expense")?._sum.amountBase || 0);
+        categories_list: tool({
+          description: "Listar todas las categorías disponibles para gastos e ingresos",
+          inputSchema: z.object({}),
+          execute: async (args) => {
+            try {
+              guardTool("categories_list", args);
+              const categories = await withTimeout(
+                prisma.category.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
+                TOOL_TIMEOUT_MS,
+                "Timeout al listar categorías"
+              );
+              return {
+                success: true,
+                categories: categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  type: c.type,
+                })),
+              };
+            } catch (error: unknown) {
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error al listar categorías"), true);
+            }
+          },
+        }),
 
-                    return {
-                        month: m,
-                        year: y,
-                        income,
-                        expense,
-                        net: income - expense
-                    };
-                },
-            }),
+        analytics_summary: tool({
+          description: "Obtener resumen financiero del mes actual (ingresos, gastos, balance neto)",
+          inputSchema: z.object({
+            month: z.number().optional().describe("1-12"),
+            year: z.number().optional().describe("YYYY"),
+          }),
+          execute: async (args) => {
+            try {
+              guardTool("analytics_summary", args);
+              const now = new Date();
+              const m = args.month || now.getMonth() + 1;
+              const y = args.year || now.getFullYear();
 
-            analytics_by_category: tool({
-                description: "Obtener desglose de gastos por categoría en el periodo actual",
-                inputSchema: z.object({
-                    limit: z.number().optional(),
+              const start = new Date(y, m - 1, 1);
+              const end = new Date(y, m, 0);
+
+              const aggs = await withTimeout(
+                prisma.transaction.groupBy({
+                  by: ["type"],
+                  where: { workspaceId, date: { gte: start, lte: end } },
+                  _sum: { amountBase: true },
                 }),
-                execute: async ({ limit = 5 }) => {
-                    const now = new Date();
-                    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                TOOL_TIMEOUT_MS,
+                "Timeout en resumen analítico"
+              );
 
-                    // We need to fetch and aggregate manually because groupBy doesn't support relation include easily
-                    const txs = await prisma.transaction.findMany({
-                        where: {
-                            workspaceId,
-                            type: "expense",
-                            date: { gte: start },
-                        },
-                        include: { category: true },
-                    });
+              const income = Number(aggs.find((a) => a.type === "income")?._sum.amountBase || 0);
+              const expense = Number(aggs.find((a) => a.type === "expense")?._sum.amountBase || 0);
 
-                    const map = new Map<string, number>();
-                    txs.forEach(t => {
-                        const cat = t.category?.name || "Sin categoría";
-                        map.set(cat, (map.get(cat) || 0) + Number(t.amountBase));
-                    });
+              return { success: true, month: m, year: y, income, expense, net: income - expense };
+            } catch (error: unknown) {
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error en resumen analítico"), true);
+            }
+          },
+        }),
 
-                    const sorted = Array.from(map.entries())
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, limit)
-                        .map(([category, total]) => ({ category, total }));
+        analytics_by_category: tool({
+          description: "Obtener desglose de gastos por categoría en el periodo actual",
+          inputSchema: z.object({ limit: z.number().optional() }),
+          execute: async (args) => {
+            try {
+              guardTool("analytics_by_category", args);
+              const now = new Date();
+              const start = new Date(now.getFullYear(), now.getMonth(), 1);
 
-                    return sorted;
-                },
-            }),
-        },
+              const txs = await withTimeout(
+                prisma.transaction.findMany({
+                  where: { workspaceId, type: "expense", date: { gte: start } },
+                  include: { category: true },
+                }),
+                TOOL_TIMEOUT_MS,
+                "Timeout en análisis por categoría"
+              );
+
+              const map = new Map<string, number>();
+              txs.forEach((t) => {
+                const cat = t.category?.name || "Sin categoría";
+                map.set(cat, (map.get(cat) || 0) + Number(t.amountBase));
+              });
+
+              const sorted = Array.from(map.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, args.limit ?? 5)
+                .map(([category, total]) => ({ category, total }));
+
+              return { success: true, items: sorted };
+            } catch (error: unknown) {
+              return toToolError("tool_execution_error", getErrorMessage(error, "Error en análisis por categoría"), true);
+            }
+          },
+        }),
+      },
     });
 
     return result.toTextStreamResponse();
+  } catch (error: unknown) {
+    console.error("chat.route.error", { message: getErrorMessage(error, "chat_error") });
+    return Response.json(
+      {
+        error: "chat_failed",
+        message: "No se pudo procesar la solicitud del chat en este momento.",
+      },
+      { status: 500 }
+    );
+  }
 }
