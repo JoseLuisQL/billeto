@@ -213,7 +213,7 @@ export async function POST(req: Request) {
       });
 
       const blockedResult = streamText({
-        model: google("gemini-2.0-flash"),
+        model: google("gemini-2.5-flash"),
         system: `Responde UNICAMENTE con el siguiente texto exacto, sin modificar nada, sin agregar nada antes ni despues:\n\n${BLOCKED_RESPONSE_TEXT}`,
         messages: [{ role: "user" as const, content: "." }],
       });
@@ -269,7 +269,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
 `;
 
     const result = streamText({
-      model: google("gemini-2.0-flash"),
+      model: google("gemini-2.5-flash"),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       stopWhen: stepCountIs(5),
