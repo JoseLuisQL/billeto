@@ -1,5 +1,5 @@
 import { google } from "@ai-sdk/google";
-import { streamText, tool, convertToModelMessages } from "ai";
+import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -59,92 +59,6 @@ function makeToolGuard() {
       throw new Error("Se detectó un posible loop de herramientas. Reformulá la consulta o agregá más contexto.");
     }
   };
-}
-
-function collectText(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (!value || typeof value !== "object") return [];
-
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => collectText(item));
-  }
-
-  const obj = value as {
-    text?: unknown;
-    content?: unknown;
-    parts?: unknown;
-    type?: unknown;
-  };
-
-  const chunks: string[] = [];
-
-  if (typeof obj.text === "string") {
-    chunks.push(obj.text);
-  }
-
-  if (obj.type === "text" && typeof obj.text === "string") {
-    chunks.push(obj.text);
-  }
-
-  if (obj.content !== undefined) {
-    chunks.push(...collectText(obj.content));
-  }
-
-  if (obj.parts !== undefined) {
-    chunks.push(...collectText(obj.parts));
-  }
-
-  return chunks;
-}
-
-function extractTextFromMessage(message: unknown): string {
-  const text = collectText(message)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  return text;
-}
-
-type AllowedChatRole = "user" | "assistant" | "system";
-type SanitizedMessage = {
-  role: AllowedChatRole;
-  parts: [{ type: "text"; text: string }];
-};
-
-function isAllowedChatRole(role: unknown): role is AllowedChatRole {
-  return role === "user" || role === "assistant" || role === "system";
-}
-
-function sanitizeMessagesForModel(messages: unknown[]): SanitizedMessage[] {
-  const sanitized = messages
-    .map((message): SanitizedMessage | null => {
-      if (!message || typeof message !== "object") return null;
-      const msg = message as { role?: unknown };
-      if (!isAllowedChatRole(msg.role)) return null;
-
-      const content = extractTextFromMessage(message);
-      if (!content) return null;
-
-      return {
-        role: msg.role,
-        parts: [{ type: "text", text: content }],
-      };
-    })
-    .filter((entry): entry is SanitizedMessage => entry !== null);
-
-  const hasUserWithText = sanitized.some((m) => {
-    if (m.role !== "user") return false;
-    const text = m.parts[0]?.text;
-    return typeof text === "string" && text.trim().length > 0;
-  });
-
-  if (!hasUserWithText) {
-    return [{ role: "user", parts: [{ type: "text", text: "Hola" }] }];
-  }
-
-  return sanitized;
 }
 
 function classifyUserIntent(input: string) {
@@ -266,23 +180,20 @@ export async function POST(req: Request) {
     if (rateLimitResponse) return rateLimitResponse;
 
     const body = await req.json();
-    const coreMessages = Array.isArray(body?.messages) ? body.messages : [];
+    const { messages }: { messages: UIMessage[] } = body;
 
-    const sanitizedMessages = sanitizeMessagesForModel(coreMessages);
-    let modelMessages = await convertToModelMessages(sanitizedMessages);
-
-    const hasUserMessage = modelMessages.some((message) => {
-      const m = message as { role?: string; content?: unknown };
-      return m.role === "user" && extractTextFromMessage(m.content).trim().length > 0;
-    });
-
-    if (!hasUserMessage) {
-      modelMessages = await convertToModelMessages([{ role: "user", parts: [{ type: "text", text: "Hola" }] }]);
-    }
-
-    const lastUserText = [...sanitizedMessages]
+    const lastUserMsg = [...(messages || [])]
       .reverse()
-      .find((message) => message.role === "user")?.parts?.[0]?.text || "Hola";
+      .find((m) => m.role === "user");
+    let lastUserText = "Hola";
+    if (lastUserMsg?.parts) {
+      for (const p of lastUserMsg.parts) {
+        if (p.type === "text" && p.text?.trim()) {
+          lastUserText = p.text;
+          break;
+        }
+      }
+    }
     const { simpleGreeting, supportIntent } = classifyUserIntent(lastUserText);
 
     const currentDate = new Date().toLocaleDateString("es-PE", {
@@ -298,33 +209,34 @@ export async function POST(req: Request) {
     const systemPrompt = `Eres Billeto, asistente financiero profesional.
 Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
 
-Objetivo de estilo:
-- Respuesta profesional y útil en formato breve.
-- Usa 2 a 4 líneas con viñetas cuando sea posible.
-- Evita respuestas genéricas repetitivas como "hola, ¿en qué te ayudo?" sin contenido accionable.
-- No uses emojis innecesarios.
+Estilo de respuesta:
+- Profesional, conciso, sin emojis innecesarios.
+- Usa viñetas cuando sea útil (2-4 líneas max).
 
-Reglas operativas:
-1) Si el usuario solo saluda, responde con micro-guía útil (3 viñetas): registrar gasto, ver balance, ver últimos movimientos.
-2) Si faltan datos críticos para mutar (monto, descripción o tipo), pedí aclaración antes de ejecutar tools.
-3) Nunca pidas IDs ni comandos internos (como accounts_list o categories_list) al usuario final.
-4) Para registrar gastos, prioriza nombres humanos (cuenta/categoría) y resuelve internamente.
-5) Si el usuario menciona una cuenta/categoría no reconocida, pide confirmación breve en lenguaje natural.
-6) Si hay error de herramienta, explica el error y da siguiente paso concreto.
-7) CTA de soporte por WhatsApp SOLO si el usuario solicita soporte/contacto humano.
-8) Cuando no sea soporte, no incluyas enlace de WhatsApp.
+Reglas para registrar gastos/ingresos:
+1) Cuando el usuario menciona un gasto o ingreso con monto y descripción, REGISTRALO INMEDIATAMENTE usando transactions_create. NO preguntes confirmación.
+2) Infiere automáticamente: tipo (expense por defecto si dice "gasté/compré/pagué"), descripción del texto, y category_name basada en el contexto (ej: "helado" → "Comida", "uber" → "Transporte", "netflix" → "Entretenimiento").
+3) Si no se menciona cuenta, NO preguntes. El sistema asignará la cuenta por defecto automáticamente.
+4) Si no se menciona categoría, NO preguntes. Infiere la categoría más lógica del contexto o el sistema la asignará.
+5) SOLO pregunta si falta el MONTO (dato realmente crítico). Descripción se puede inferir del contexto.
+6) Después de registrar una transacción exitosamente, NO escribas texto adicional. La tarjeta de confirmación ya muestra toda la información al usuario. Solo responde con texto si hubo un error o necesitas aclarar algo.
+
+Reglas generales:
+- Si el usuario solo saluda, responde con micro-guía útil (3 viñetas): registrar gasto, ver balance, ver últimos movimientos.
+- Nunca pidas IDs internos al usuario.
+- Si hay error de herramienta, explica brevemente y sugiere siguiente paso.
+- CTA de soporte por WhatsApp SOLO si el usuario solicita soporte/contacto humano.
 
 Contexto de intención detectada:
-- Saludo simple detectado: ${simpleGreeting ? "sí" : "no"}
-- Intención de soporte detectada: ${supportIntent ? "sí" : "no"}
+- Saludo simple: ${simpleGreeting ? "sí" : "no"}
+- Soporte: ${supportIntent ? "sí" : "no"}
 `;
 
     const result = streamText({
       model: google("gemini-2.0-flash"),
       system: systemPrompt,
-      messages: modelMessages,
-      // @ts-expect-error maxSteps está soportado por runtime del SDK, pero no en tipos actuales del proyecto.
-      maxSteps: 3,
+      messages: await convertToModelMessages(messages),
+      stopWhen: stepCountIs(5),
       tools: {
         transactions_create: tool({
           description: "Crear una nueva transacción financiera (gasto o ingreso)",
@@ -737,7 +649,7 @@ Contexto de intención detectada:
       },
     });
 
-    return result.toTextStreamResponse({
+    return result.toUIMessageStreamResponse({
       headers: {
         "X-Billeto-Intent-Support": supportIntent ? "1" : "0",
       },
