@@ -17,6 +17,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { BilletoIcon, BilletoLogo } from "@/components/ui/logo";
 
 interface SidebarProps {
   user: {
@@ -56,8 +57,8 @@ export function DashboardSidebar({
   return (
     <aside className={`flex h-screen flex-col border-r border-white/10 bg-zinc-900 ${className}`}>
       <div className={`flex h-16 items-center border-b border-white/10 ${collapsed ? "justify-center px-2" : "px-6"}`}>
-        <Link href="/dashboard" className="text-xl font-bold tracking-tighter text-white" onClick={onNavigate}>
-          {collapsed ? "B" : "BILLETO"}
+        <Link href="/dashboard" onClick={onNavigate}>
+          {collapsed ? <BilletoIcon className="size-8" /> : <BilletoLogo />}
         </Link>
       </div>
 
@@ -72,11 +73,10 @@ export function DashboardSidebar({
               href={item.href}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center rounded-lg py-2.5 text-sm transition-all ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${
-                isActive
-                  ? "bg-lime-400/10 font-medium text-lime-400"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-white"
-              }`}
+              className={`flex items-center rounded-lg py-2.5 text-sm transition-all ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${isActive
+                ? "bg-lime-400/10 font-medium text-lime-400"
+                : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                }`}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}
@@ -96,11 +96,10 @@ export function DashboardSidebar({
               href={item.href}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center rounded-lg py-2.5 text-sm transition-all ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${
-                isActive
-                  ? "bg-lime-400/10 font-medium text-lime-400"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-white"
-              }`}
+              className={`flex items-center rounded-lg py-2.5 text-sm transition-all ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${isActive
+                ? "bg-lime-400/10 font-medium text-lime-400"
+                : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                }`}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}

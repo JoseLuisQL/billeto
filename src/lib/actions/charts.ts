@@ -80,19 +80,20 @@ export async function obtenerActividadMensual(rango?: { from?: string; to?: stri
  * Datos para el gráfico de distribución por categoría.
  * Retorna gastos agrupados por categoría del mes actual.
  */
-export async function obtenerDistribucionCategorias(rango?: { from?: string; to?: string }) {
+export async function obtenerDistribucionCategorias(rango?: { from?: string; to?: string; type?: "income" | "expense" }) {
     try {
         const { workspace } = await obtenerWorkspace();
 
         const ahora = new Date();
         const inicioMes = rango?.from ? new Date(rango.from) : new Date(ahora.getFullYear(), ahora.getMonth(), 1);
         const finMes = rango?.to ? new Date(rango.to) : new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
+        const tipo = rango?.type || "expense";
 
         const transacciones = await prisma.transaction.findMany({
             where: {
                 workspaceId: workspace.id,
                 deletedAt: null,
-                type: "expense",
+                type: tipo,
                 date: { gte: inicioMes, lte: finMes },
             },
             include: {

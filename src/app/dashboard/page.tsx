@@ -177,10 +177,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <article className="rounded-xl border border-white/10 bg-zinc-900/40 p-4">
-          <h3 className="mb-3 text-sm font-medium text-zinc-100">Distribución por categoría</h3>
-          <CategoryPieChart from={rangoFechas.from.toISOString()} to={rangoFechas.to.toISOString()} />
-        </article>
+        <CategoryPieChart from={rangoFechas.from.toISOString()} to={rangoFechas.to.toISOString()} />
 
         <article className="rounded-xl border border-white/10 bg-zinc-900/40 p-4">
           <h3 className="mb-3 text-sm font-medium text-zinc-100">Cuentas</h3>

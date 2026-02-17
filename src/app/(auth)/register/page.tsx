@@ -12,6 +12,8 @@ import { motion } from "framer-motion";
 import { registrarUsuario } from "@/lib/actions/auth";
 import { useToast } from "@/components/ui/toast";
 
+import { BilletoLogo } from "@/components/ui/logo";
+
 /**
  * Página de Registro con integración real de server actions.
  * Crea usuario + workspace + categorías + cuenta por defecto.
@@ -54,8 +56,8 @@ export default function RegisterPage() {
             >
                 <Card className="bg-zinc-900 border-white/10 shadow-xl">
                     <CardHeader className="text-center space-y-2 pb-2">
-                        <Link href="/" className="text-2xl font-bold tracking-tighter text-white block">
-                            BILLETO
+                        <Link href="/" className="inline-block hover:opacity-90 transition-opacity">
+                            <BilletoLogo className="justify-center text-white" />
                         </Link>
                         <p className="text-muted-foreground text-sm">
                             Creá tu cuenta y tomá el control de tus finanzas.
