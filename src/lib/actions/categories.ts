@@ -103,7 +103,7 @@ export async function crearCategoria(formData: FormData) {
             },
         });
 
-        revalidatePath("/dashboard/categories");
+        revalidatePath("/categories");
         return { success: true, categoria };
     } catch (error) {
         if (isRateLimitError(error)) {
@@ -187,7 +187,7 @@ export async function actualizarCategoria(id: string, formData: FormData) {
             return { error: "Categoría no encontrada tras actualizar." };
         }
 
-        revalidatePath("/dashboard/categories");
+        revalidatePath("/categories");
         return { success: true, categoria: actualizada };
     } catch (error) {
         if (isRateLimitError(error)) {
@@ -244,7 +244,7 @@ export async function eliminarCategoria(id: string) {
             return { error: "Categoría no encontrada o sin permisos." };
         }
 
-        revalidatePath("/dashboard/categories");
+        revalidatePath("/categories");
         return { success: true };
     } catch (error) {
         if (isRateLimitError(error)) {

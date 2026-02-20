@@ -109,7 +109,7 @@ export async function crearRecurrente(data: {
             },
         });
 
-        revalidatePath("/dashboard/recurring");
+        revalidatePath("/transactions/recurring-transactions");
         return { ok: true, recurrente };
     } catch (err: unknown) {
         if (isRateLimitError(err)) {
@@ -190,7 +190,7 @@ export async function actualizarRecurrente(
             },
         });
 
-        revalidatePath("/dashboard/recurring");
+        revalidatePath("/transactions/recurring-transactions");
         return { ok: true, recurrente };
     } catch (err: unknown) {
         if (isRateLimitError(err)) {
@@ -241,7 +241,7 @@ export async function eliminarRecurrente(id: string) {
             },
         });
 
-        revalidatePath("/dashboard/recurring");
+        revalidatePath("/transactions/recurring-transactions");
         return { ok: true };
     } catch (err: unknown) {
         if (isRateLimitError(err)) {
@@ -340,8 +340,8 @@ export async function ejecutarRecurrentes() {
         }
 
         revalidatePath("/dashboard");
-        revalidatePath("/dashboard/recurring");
-        revalidatePath("/dashboard/transactions");
+        revalidatePath("/transactions/recurring-transactions");
+        revalidatePath("/transactions");
         return { ok: true, ejecutadas };
     } catch (err: unknown) {
         if (isRateLimitError(err)) {

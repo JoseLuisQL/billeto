@@ -115,7 +115,7 @@ function TransactionCard({ card }: { card: SummaryCard }) {
             </div>
             <div className="border-t border-white/5 px-4 py-2 flex items-center justify-between">
                 <Link
-                    href="/dashboard/transactions"
+                    href="/transactions"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-400/20"
                 >
                     <Sparkles className="h-3 w-3" />
@@ -281,11 +281,10 @@ export default function AIAssistantPage() {
                                     </div>
                                 )}
                                 <div
-                                    className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                                        msg.role === "user"
+                                    className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === "user"
                                             ? "bg-zinc-800 text-zinc-100"
                                             : "text-zinc-300"
-                                    }`}
+                                        }`}
                                 >
                                     {(() => {
                                         const parts = (msg.parts || []) as Array<{ type: string; text?: string; state?: string; output?: unknown; toolName?: string; toolCallId?: string }>;

@@ -11,12 +11,12 @@ const SIDEBAR_STATE_KEY = "billeto.sidebar.hidden";
 
 const routeMeta: Record<string, { title: string; breadcrumb: string[] }> = {
   "/dashboard": { title: "Dashboard", breadcrumb: ["Dashboard"] },
-  "/dashboard/transactions": { title: "Transacciones", breadcrumb: ["Dashboard", "Transacciones"] },
-  "/dashboard/accounts": { title: "Cuentas", breadcrumb: ["Dashboard", "Cuentas"] },
-  "/dashboard/categories": { title: "Categorías", breadcrumb: ["Dashboard", "Categorías"] },
-  "/dashboard/rules": { title: "Reglas", breadcrumb: ["Dashboard", "Reglas"] },
-  "/dashboard/recurring": { title: "Recurrentes", breadcrumb: ["Dashboard", "Recurrentes"] },
-  "/dashboard/ai": { title: "Asistente IA", breadcrumb: ["Dashboard", "Asistente IA"] },
+  "/transactions": { title: "Transacciones", breadcrumb: ["Dashboard", "Transacciones"] },
+  "/accounts": { title: "Cuentas", breadcrumb: ["Dashboard", "Cuentas"] },
+  "/categories": { title: "Categorías", breadcrumb: ["Dashboard", "Categorías"] },
+  "/transactions/rules": { title: "Reglas", breadcrumb: ["Dashboard", "Reglas"] },
+  "/transactions/recurring-transactions": { title: "Recurrentes", breadcrumb: ["Dashboard", "Recurrentes"] },
+  "/assistant": { title: "Asistente IA", breadcrumb: ["Dashboard", "Asistente IA"] },
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -36,8 +36,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     const direct = routeMeta[pathname];
     if (direct) return direct;
 
-    const section = pathname.replace("/dashboard", "").split("/").filter(Boolean)[0] || "dashboard";
-    const label = section.charAt(0).toUpperCase() + section.slice(1);
+    const parts = pathname.split("/").filter(Boolean);
+    const section = parts[parts.length - 1] || "dashboard";
+    const label = section.charAt(0).toUpperCase() + section.slice(1).replace("-", " ");
     return { title: label, breadcrumb: ["Dashboard", label] };
   }, [pathname]);
 

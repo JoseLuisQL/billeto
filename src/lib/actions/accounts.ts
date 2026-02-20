@@ -105,7 +105,7 @@ export async function crearCuenta(formData: FormData) {
             },
         });
 
-        revalidatePath("/dashboard/accounts");
+        revalidatePath("/accounts");
         revalidatePath("/dashboard");
         return { success: true, cuenta };
     } catch (error) {
@@ -189,7 +189,7 @@ export async function actualizarCuenta(id: string, formData: FormData) {
             },
         });
 
-        revalidatePath("/dashboard/accounts");
+        revalidatePath("/accounts");
         return { success: true, cuenta: actualizada };
     } catch (error) {
         if (isRateLimitError(error)) {
@@ -247,7 +247,7 @@ export async function eliminarCuenta(id: string) {
             },
         });
 
-        revalidatePath("/dashboard/accounts");
+        revalidatePath("/accounts");
         revalidatePath("/dashboard");
         return { success: true };
     } catch (error) {

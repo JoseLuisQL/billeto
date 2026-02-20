@@ -105,7 +105,7 @@ export async function crearRegla(data: {
             },
         });
 
-        revalidatePath("/dashboard/rules");
+        revalidatePath("/transactions/rules");
         return { ok: true, regla };
     } catch (err: unknown) {
         if (err instanceof Error) {
@@ -200,7 +200,7 @@ export async function actualizarRegla(
             },
         });
 
-        revalidatePath("/dashboard/rules");
+        revalidatePath("/transactions/rules");
         return { ok: true, regla };
     } catch (err: unknown) {
         if (err instanceof Error) {
@@ -248,7 +248,7 @@ export async function eliminarRegla(id: string) {
             },
         });
 
-        revalidatePath("/dashboard/rules");
+        revalidatePath("/transactions/rules");
         return { ok: true };
     } catch (err: unknown) {
         if (err instanceof Error) {

@@ -192,7 +192,7 @@ export async function crearTransaccion(formData: FormData) {
             return transaccion;
         });
 
-        revalidatePath("/dashboard/transactions");
+        revalidatePath("/transactions");
         revalidatePath("/dashboard");
         return { success: true, transaccion: resultado };
     } catch (error) {
@@ -266,7 +266,7 @@ export async function eliminarTransaccion(id: string) {
             });
         });
 
-        revalidatePath("/dashboard/transactions");
+        revalidatePath("/transactions");
         revalidatePath("/dashboard");
         return { success: true };
     } catch (error) {
