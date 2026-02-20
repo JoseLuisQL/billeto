@@ -35,7 +35,11 @@ import {
     ArrowDown,
     TableProperties,
     Download,
-    Zap
+    Zap,
+    Upload,
+    Folder,
+    Info,
+    Star
 } from "lucide-react";
 import {
     listarTransacciones,
@@ -56,10 +60,15 @@ import {
     DropdownMenuTrigger,
     DropdownMenuCheckboxItem,
     DropdownMenuRadioGroup,
-    DropdownMenuRadioItem
+    DropdownMenuRadioItem,
+    DropdownMenuSub,
+    DropdownMenuSubTrigger,
+    DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { currencies, Currency } from "@/lib/currencies";
 
 // --- Types ---
 type TransactionItem = {
@@ -102,9 +111,17 @@ export default function TransactionsPage() {
     const [total, setTotal] = useState(0);
     const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
+    // Feature Modals
+    const [categoriesModal, setCategoriesModal] = useState(false);
+    const [createCategoryModal, setCreateCategoryModal] = useState(false);
+    const [searchCategory, setSearchCategory] = useState("");
+    const [newCategoryEmoji, setNewCategoryEmoji] = useState("");
+    const [newCategoryName, setNewCategoryName] = useState("");
+
     // Filters & Settings
     const [filtroTipo, setFiltroTipo] = useState<string>("");
     const [filtroCuenta, setFiltroCuenta] = useState<string>("");
+    const [searchCurrency, setSearchCurrency] = useState<string>("");
     const [settings, setSettings] = useState({
         roundAmounts: false,
         hideTransfers: false,
@@ -178,6 +195,17 @@ export default function TransactionsPage() {
         }
     };
 
+    const handleCrearCategoria = async (e: React.FormEvent) => {
+        e.preventDefault();
+        // Here we would call an action to save the category.
+        // For now, we simulate success.
+        toast({ title: "Categoría creada", description: "La categoría se creó exitosamente.", variant: "success" });
+        setCreateCategoryModal(false);
+        setNewCategoryEmoji("");
+        setNewCategoryName("");
+        cargarDatos();
+    };
+
     const handleEliminar = async (id: string) => {
         if (!confirm("¿Eliminar esta transacción?")) return;
         const result = await eliminarTransaccion(id);
@@ -245,20 +273,194 @@ export default function TransactionsPage() {
                     <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
                         <Download className="w-4 h-4" />
                     </button>
-                    <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
-                        <Settings className="w-4 h-4" />
-                    </button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                                <Settings className="w-4 h-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-[280px] bg-[#18181b] border border-zinc-800/80 shadow-2xl rounded-xl p-2 z-50">
+                            {/* Redondear montos */}
+                            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800/30 transition-colors">
+                                <div className="flex items-center gap-1.5 text-[14px] text-zinc-300 font-medium">
+                                    Redondear montos
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="w-[14px] h-[14px] text-zinc-500 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="bg-black text-white text-[12px] font-medium border border-zinc-800 rounded-[6px] px-3.5 py-2.5 shadow-2xl max-w-[280px]">
+                                            <p className="mb-0.5 whitespace-nowrap">Verás transacciones abreviadas. Ejemplo:</p>
+                                            <p className="whitespace-nowrap">10000 USD se mostrarán como 10k USD</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                                <button
+                                    onClick={(e) => { e.preventDefault(); setSettings(s => ({ ...s, roundAmounts: !s.roundAmounts })) }}
+                                    className={`w-[36px] h-[20px] rounded-full flex items-center px-[2px] transition-all duration-200 ${settings.roundAmounts ? 'border-[1.5px] border-[#D3FF0A] bg-transparent' : 'border-[1.5px] border-transparent bg-zinc-700/80'}`}
+                                >
+                                    <div className={`w-[13px] h-[13px] rounded-full transition-transform duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.4)] ${settings.roundAmounts ? 'translate-x-[16px] bg-[#27272a]' : 'translate-x-0 bg-[#18181b]'}`}></div>
+                                </button>
+                            </div>
+
+                            {/* Ocultar transferencias */}
+                            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800/30 transition-colors mt-0.5">
+                                <div className="text-[14px] text-zinc-300 font-medium">
+                                    Ocultar transferencias
+                                </div>
+                                <button
+                                    onClick={(e) => { e.preventDefault(); setSettings(s => ({ ...s, hideTransfers: !s.hideTransfers })) }}
+                                    className={`w-[36px] h-[20px] rounded-full flex items-center px-[2px] transition-all duration-200 ${settings.hideTransfers ? 'border-[1.5px] border-[#D3FF0A] bg-transparent' : 'border-[1.5px] border-transparent bg-zinc-700/80'}`}
+                                >
+                                    <div className={`w-[13px] h-[13px] rounded-full transition-transform duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.4)] ${settings.hideTransfers ? 'translate-x-[16px] bg-[#27272a]' : 'translate-x-0 bg-[#18181b]'}`}></div>
+                                </button>
+                            </div>
+
+                            {/* Límite */}
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800/30 transition-colors mt-0.5 group focus:bg-zinc-800/30 data-[state=open]:bg-zinc-800/30 text-[14px] text-zinc-300 font-medium cursor-pointer">
+                                    Límite
+                                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-zinc-200">
+                                        <span>{settings.limit}</span>
+                                    </div>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-[120px] bg-[#18181b] border-zinc-800/80 shadow-2xl rounded-xl p-1.5 z-50 ml-1">
+                                    {[5, 10, 20, 50, 100].map(val => (
+                                        <DropdownMenuItem
+                                            key={val}
+                                            onClick={() => setSettings(s => ({ ...s, limit: val }))}
+                                            className="text-sm py-2 px-3 flex justify-between cursor-pointer hover:bg-zinc-800 hover:text-white rounded-lg focus:bg-zinc-800 focus:text-white transition-colors"
+                                        >
+                                            <span className="font-medium">{val}</span>
+                                            {settings.limit === val && <Check className="w-4 h-4 text-[#D3FF0A]" />}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+
+                            {/* Moneda */}
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800/30 transition-colors mt-0.5 group focus:bg-zinc-800/30 data-[state=open]:bg-zinc-800/30 cursor-pointer">
+                                    <div className="flex items-center gap-1.5 text-[14px] text-zinc-300 font-medium">
+                                        Moneda principal
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onPointerDown={e => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                    }}
+                                                    onClick={e => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                    }}
+                                                    className="flex items-center justify-center cursor-help"
+                                                >
+                                                    <Info className="w-[14px] h-[14px] text-zinc-500" />
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="bg-black text-white text-[12px] font-medium border border-zinc-800 rounded-[6px] px-3.5 py-2.5 shadow-2xl max-w-[280px] z-[100]">
+                                                <p className="mb-0.5 whitespace-nowrap">En esta moneda se unificarán tus reportes.</p>
+                                                <p className="whitespace-nowrap">No confundir con "Moneda de integraciones"</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 uppercase tracking-wide">
+                                        <span className="opacity-60">{settings.mainCurrency.slice(0, 2)}</span> {settings.mainCurrency}
+                                    </div>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-[280px] h-[400px] flex flex-col bg-[#18181b] border border-zinc-800/80 shadow-2xl rounded-xl p-0 z-50 ml-1">
+                                    <div className="p-2 border-b border-zinc-800/60 sticky top-0 bg-[#18181b] z-10 rounded-t-xl shrink-0">
+                                        <div className="relative">
+                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar moneda..."
+                                                value={searchCurrency}
+                                                onChange={e => setSearchCurrency(e.target.value)}
+                                                onKeyDown={e => e.stopPropagation()}
+                                                className="w-full bg-[#09090b] border border-zinc-800 rounded-lg py-2 pl-9 pr-3 text-[13px] text-zinc-300 focus:outline-none focus:border-zinc-700 transition-colors placeholder:text-zinc-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-1.5 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                                        {(['Global', 'Favorita', 'Latinoamérica', 'Norteamérica', 'Europa', 'Asia', 'Mundial'] as const).map(region => {
+                                            const regionCurrencies = currencies.filter(c =>
+                                                c.region === region &&
+                                                (c.name.toLowerCase().includes(searchCurrency.toLowerCase()) || c.code.toLowerCase().includes(searchCurrency.toLowerCase()))
+                                            );
+
+                                            if (regionCurrencies.length === 0) return null;
+
+                                            return (
+                                                <div key={region} className="mb-2 last:mb-0">
+                                                    {region !== 'Global' && (
+                                                        <div className="px-3 py-1.5 text-[11px] font-medium text-zinc-500 mt-1">
+                                                            {region}
+                                                        </div>
+                                                    )}
+                                                    {regionCurrencies.map(currency => (
+                                                        <DropdownMenuItem
+                                                            key={currency.code}
+                                                            onClick={() => setSettings(s => ({ ...s, mainCurrency: currency.code === 'NONE' ? 'PEN' : currency.code }))}
+                                                            className={`text-[13px] py-1.5 px-3 gap-2.5 cursor-pointer hover:bg-zinc-800/80 hover:text-white rounded-lg focus:bg-zinc-800 focus:text-white transition-colors flex items-center ${settings.mainCurrency === currency.code ? 'bg-zinc-800/40 text-white' : 'text-zinc-300'}`}
+                                                        >
+                                                            <div className="w-[20px] text-center text-sm drop-shadow-sm leading-none">{currency.flag}</div>
+                                                            <div className="flex-1 flex items-center gap-1.5 truncate">
+                                                                {currency.code !== 'NONE' && <span className="text-[10px] font-bold text-zinc-400">{currency.code.slice(0, 2)}</span>}
+                                                                <span className={currency.code !== 'NONE' ? "font-medium" : ""}>{currency.code !== 'NONE' ? currency.code : currency.name}</span>
+                                                                {currency.code !== 'NONE' && <span className="text-zinc-500 font-normal truncate">- {currency.name}</span>}
+                                                            </div>
+                                                            {currency.region === 'Favorita' && <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                    {region === 'Global' && searchCurrency === "" && <div className="h-px bg-zinc-800/60 my-1 mx-2" />}
+                                                </div>
+                                            );
+                                        })}
+                                        {currencies.filter(c => c.name.toLowerCase().includes(searchCurrency.toLowerCase()) || c.code.toLowerCase().includes(searchCurrency.toLowerCase())).length === 0 && (
+                                            <div className="py-6 px-3 text-center text-[13px] text-zinc-500">
+                                                No se encontraron resultados para "{searchCurrency}"
+                                            </div>
+                                        )}
+                                    </div>
+                                </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <button className="w-6 h-6 ml-1.5 rounded flex items-center justify-center bg-[#5E2BFF] text-white hover:bg-[#6c3dfa] transition-colors">
                         <Zap className="w-3.5 h-3.5 fill-current" />
                     </button>
 
-                    <Button
-                        onClick={() => setModal(true)}
-                        className="bg-[#18181b] text-[#D3FF0A] border border-zinc-800 hover:bg-zinc-900 text-[11px] font-medium h-7 px-3 pr-2 ml-3 rounded-[6px] gap-1 shadow-none"
-                    >
-                        Nueva
-                        <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
-                    </Button>
+                    <div className="flex items-center ml-3 bg-[#18181b] border border-zinc-800 rounded-[6px] h-7 overflow-hidden">
+                        <button
+                            onClick={() => setModal(true)}
+                            className="text-[#D3FF0A] hover:bg-[#D3FF0A]/20 text-[11px] font-medium px-3 flex items-center h-full transition-colors"
+                        >
+                            Nueva
+                        </button>
+                        <div className="w-[1px] h-4 bg-zinc-800"></div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="text-[#D3FF0A] hover:bg-[#D3FF0A]/20 px-1.5 flex items-center h-full transition-colors">
+                                    <ChevronDown className="w-3 h-3 opacity-60" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-[#18181b] border border-zinc-800/80 shadow-2xl rounded-xl text-zinc-300 w-64 mt-2 p-1.5">
+                                <DropdownMenuItem onClick={() => setModal(true)} className="text-sm py-2 px-3 gap-3 cursor-pointer hover:bg-zinc-800 hover:text-white rounded-lg focus:bg-zinc-800 focus:text-white transition-colors">
+                                    <Plus className="w-4 h-4 text-zinc-400" /> <span className="font-medium text-[13px]">Crear nueva transacción</span>
+                                </DropdownMenuItem>
+                                <div className="h-[1px] bg-zinc-800/80 my-1 mx-2"></div>
+                                <DropdownMenuItem onClick={() => router.push('/transactions/import-transactions')} className="text-sm py-2 px-3 gap-3 cursor-pointer hover:bg-zinc-800 hover:text-white rounded-lg focus:bg-zinc-800 focus:text-white transition-colors">
+                                    <Upload className="w-4 h-4 text-zinc-400" /> <span className="font-medium text-[13px]">Importar desde proveedor</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setCategoriesModal(true)} className="text-sm py-2 px-3 gap-3 cursor-pointer hover:bg-zinc-800 hover:text-white rounded-lg focus:bg-zinc-800 focus:text-white transition-colors mt-0.5">
+                                    <Folder className="w-4 h-4 text-zinc-400" /> <span className="font-medium text-[13px]">Configurar categorías</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
             </header>
 
@@ -656,6 +858,123 @@ export default function TransactionsPage() {
                                     Guardar Transacción
                                 </Button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Modals for Categories --- */}
+            {categoriesModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-[2px]">
+                    <div className="bg-[#18181b] w-full max-w-2xl h-[600px] sm:h-[700px] rounded-xl border border-zinc-800 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="flex items-start justify-between p-6 pb-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-white tracking-tight">Administrar Categorías</h2>
+                                <p className="text-[13px] text-zinc-400 mt-1">Organiza tus categorías personalizadas para mejorar la gestión de transacciones.</p>
+                            </div>
+                            <button onClick={() => setCategoriesModal(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 bg-zinc-800/50 rounded-md">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Search and Action */}
+                        <div className="px-6 pb-4 flex gap-3">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre o emoji"
+                                    value={searchCategory}
+                                    onChange={(e) => setSearchCategory(e.target.value)}
+                                    className="w-full bg-[#09090b] border border-zinc-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-zinc-200 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700 transition-all placeholder:text-zinc-500"
+                                />
+                            </div>
+                            <Button
+                                onClick={() => setCreateCategoryModal(true)}
+                                className="bg-[#D3FF0A]/10 text-[#D3FF0A] border border-[#D3FF0A]/20 hover:bg-[#D3FF0A]/20 font-medium text-[13px] px-4 rounded-lg gap-2 h-[42px]"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Crear Categoría
+                            </Button>
+                        </div>
+
+                        {/* Categories List */}
+                        <div className="flex-1 overflow-y-auto p-6 pt-2 scrollbar-thin scrollbar-thumb-zinc-800">
+                            <h3 className="text-[13px] font-semibold text-zinc-300 mb-4">Predefinidas</h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                {/* Display predefined categories from state, filtered by search */}
+                                {categorias
+                                    .filter(c => c.name.toLowerCase().includes(searchCategory.toLowerCase()))
+                                    .map(c => {
+                                        // Extract emoji safely (assuming format "$emoji $name" or similar)
+                                        const emojiMatch = c.icon || c.name.match(/^[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]\s?/);
+                                        const emoji = emojiMatch ? (Array.isArray(emojiMatch) ? emojiMatch[0].trim() : emojiMatch) : "📁";
+                                        const nameOnly = c.name.replace(/^[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]\s?/, '').trim() || c.name;
+
+                                        return (
+                                            <div key={c.id} className="bg-[#27272a]/30 hover:bg-[#27272a]/80 border border-zinc-800/80 rounded-xl p-4 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-colors group">
+                                                <div className="w-10 h-10 rounded-full bg-zinc-800/50 flex items-center justify-center text-xl group-hover:scale-110 transition-transform duration-200">
+                                                    {emoji}
+                                                </div>
+                                                <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-300 text-center line-clamp-1">{nameOnly}</span>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Crear Categoría Sub-modal */}
+            {createCategoryModal && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-[2px]">
+                    <div className="bg-[#18181b] w-full max-w-[400px] rounded-2xl border border-zinc-800 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-5 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-[15px] font-semibold text-white tracking-tight">Crear Categoría</h3>
+                                <p className="text-[12px] text-zinc-500 mt-1 leading-relaxed">Add a new custom category to organize your transactions.</p>
+                            </div>
+                            <button onClick={() => setCreateCategoryModal(false)} className="text-zinc-500 hover:text-white transition-colors p-1 bg-zinc-800/50 rounded-md">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="px-5 pb-5">
+                            <form onSubmit={handleCrearCategoria} className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <Label className="text-[13px] font-medium text-zinc-300">Emoji</Label>
+                                    <div className="relative">
+                                        <Input
+                                            value={newCategoryEmoji}
+                                            onChange={(e) => setNewCategoryEmoji(e.target.value)}
+                                            placeholder="🍕"
+                                            className="bg-[#09090b] border border-[#D3FF0A]/40 text-base py-5 px-4 rounded-xl focus-visible:ring-1 focus-visible:ring-[#D3FF0A]/50 focus-visible:border-[#D3FF0A]/60"
+                                            maxLength={2}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[13px] font-medium text-zinc-300">Nombre</Label>
+                                    <Input
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="Comida y Bebida"
+                                        className="bg-[#27272a]/50 border-zinc-800 text-zinc-200 py-5 px-4 rounded-xl focus-visible:ring-1 focus-visible:ring-zinc-700 focus-visible:border-zinc-700"
+                                        required
+                                    />
+                                </div>
+                                <div className="pt-2">
+                                    <Button
+                                        type="submit"
+                                        className="w-full bg-[#D3FF0A]/20 hover:bg-[#D3FF0A]/30 text-[#D3FF0A] border border-[#D3FF0A]/20 font-medium py-5 rounded-xl transition-all"
+                                    >
+                                        Crear Categoría
+                                    </Button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
