@@ -31,7 +31,11 @@ import {
     Eye,
     EyeOff,
     ArrowUpDown,
-    CreditCard
+    CreditCard,
+    ArrowDown,
+    TableProperties,
+    Download,
+    Zap
 } from "lucide-react";
 import {
     listarTransacciones,
@@ -215,237 +219,161 @@ export default function TransactionsPage() {
     const formatearFecha = (fecha: string) => {
         // Mocking "Feb 17" format
         const d = new Date(fecha);
-        return d.toLocaleDateString("es-PE", { month: "short", day: "numeric" });
+        return d.toLocaleDateString("es-PE", { month: "short", day: "numeric" }).replace('.', '');
     };
 
     if (status === "loading") return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-zinc-500">Cargando...</div>;
     if (status === "unauthenticated") { router.push("/login"); return null; }
 
     return (
-        <div className="min-h-screen bg-[#09090b] text-zinc-200 font-sans selection:bg-[#D3FF0A]/20">
+        <div className="min-h-screen bg-[#09090b] text-zinc-200 font-sans selection:bg-[#D3FF0A]/20 pb-20">
 
             {/* --- Top Navigation / Header --- */}
-            <header className="flex h-16 items-center justify-between px-6 border-b border-zinc-800/40 sticky top-0 bg-[#09090b]/80 backdrop-blur-md z-40">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-zinc-400">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                            <ArrowUpDown className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-white">Transacciones</span>
-                    </div>
+            <header className="flex h-[4.5rem] items-center justify-between px-8 border-b border-zinc-800/60 sticky top-0 bg-[#09090b] z-40">
+                <div className="flex items-center gap-2.5 text-zinc-400">
+                    <TableProperties className="w-4 h-4 text-zinc-300" />
+                    <span className="font-semibold text-[13px] text-white tracking-wide">Tabla</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    {/* Only showing icons to match clean aesthetics, or minimalistic buttons */}
+                <div className="flex items-center gap-2.5">
+                    <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                        <Search className="w-4 h-4" />
+                    </button>
+                    <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                        <Filter className="w-4 h-4" />
+                    </button>
+                    <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                        <Download className="w-4 h-4" />
+                    </button>
+                    <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
+                        <Settings className="w-4 h-4" />
+                    </button>
+                    <button className="w-6 h-6 ml-1.5 rounded flex items-center justify-center bg-[#5E2BFF] text-white hover:bg-[#6c3dfa] transition-colors">
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                    </button>
+
+                    <Button
+                        onClick={() => setModal(true)}
+                        className="bg-[#18181b] text-[#D3FF0A] border border-zinc-800 hover:bg-zinc-900 text-[11px] font-medium h-7 px-3 pr-2 ml-3 rounded-[6px] gap-1 shadow-none"
+                    >
+                        Nueva
+                        <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
+                    </Button>
                 </div>
             </header>
 
-            <main className="p-6 space-y-6 max-w-[1920px] mx-auto">
+            <main className="px-8 pt-6 pb-12 max-w-[1600px] mx-auto space-y-7">
 
-                {/* --- Filters Bar --- */}
-                <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
-                    <div className="flex flex-wrap items-center gap-3 w-full">
-                        {/* Date Picker Trigger (Mock) */}
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#007AFF]/10 border border-[#007AFF]/20 rounded text-xs font-medium text-[#007AFF] hover:bg-[#007AFF]/20 transition-colors cursor-pointer">
-                            <span>Fecha está entre 01/02/2026 → 28/02/2026</span>
-                            <ChevronDown className="w-3 h-3 opacity-50" />
-                        </div>
-
-                        {/* Add Filter Button */}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 h-8 text-xs gap-1.5"
-                        >
-                            <Plus className="w-3.5 h-3.5" /> Agregar filtro
-                        </Button>
-
-                        {/* View Presets */}
-                        <div className="ml-auto xl:ml-0 flex items-center gap-2 pt-2 xl:pt-0">
-                            <div className="ml-auto flex gap-2">
-                                <Button variant="ghost" className="h-8 text-zinc-500 hover:text-zinc-300 text-xs gap-2">
-                                    <Bookmark className="w-3.5 h-3.5" /> Vistas guardadas
-                                </Button>
-                                <Button variant="ghost" className="h-8 text-zinc-500 hover:text-zinc-300 text-xs gap-2">
-                                    <Save className="w-3.5 h-3.5" /> Guardar vista
-                                </Button>
-                                <Button variant="ghost" className="h-8 text-zinc-500 hover:text-zinc-300 text-xs gap-2">
-                                    <RotateCcw className="w-3.5 h-3.5" /> Restablecer
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Actions */}
-                    <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-zinc-500" />
-                            <input
-                                placeholder=""
-                                className="w-8 h-8 md:w-64 md:pl-8 md:pr-3 md:h-8 bg-transparent md:bg-zinc-900/50 border border-transparent md:border-zinc-800 rounded text-xs focus:outline-none focus:border-zinc-700 transition-all placeholder:text-zinc-600"
-                            />
-                        </div>
-
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800">
-                            <Filter className="w-4 h-4" />
-                        </Button>
-
-                        <div className="h-4 w-[1px] bg-zinc-800 mx-1"></div>
-
-                        {/* Settings Dropdown */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800">
-                                    <Settings className="w-4 h-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-64 bg-[#18181b] border-zinc-800 text-zinc-300 p-2">
-                                <div className="px-2 py-1.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Visualización</div>
-                                <DropdownMenuCheckboxItem
-                                    className="text-xs focus:bg-zinc-800 focus:text-white rounded px-2 py-1.5"
-                                    checked={settings.roundAmounts}
-                                    onCheckedChange={(c) => setSettings({ ...settings, roundAmounts: c })}
-                                >
-                                    Redondear montos
-                                </DropdownMenuCheckboxItem>
-                                <DropdownMenuCheckboxItem
-                                    className="text-xs focus:bg-zinc-800 focus:text-white rounded px-2 py-1.5"
-                                    checked={settings.hideTransfers}
-                                    onCheckedChange={(c) => setSettings({ ...settings, hideTransfers: c })}
-                                >
-                                    Ocultar transferencias
-                                </DropdownMenuCheckboxItem>
-                                <div className="my-1 h-[1px] bg-zinc-800"></div>
-                                <div className="flex items-center justify-between px-2 py-1.5 text-xs">
-                                    <span>Límite</span>
-                                    <select
-                                        value={settings.limit}
-                                        onChange={(e) => setSettings({ ...settings, limit: Number(e.target.value) })}
-                                        className="bg-zinc-900 border border-zinc-800 rounded px-1 py-0.5 text-zinc-300 focus:outline-none"
-                                    >
-                                        <option value="10">10</option>
-                                        <option value="20">20</option>
-                                        <option value="50">50</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-center justify-between px-2 py-1.5 text-xs">
-                                    <span>Moneda principal</span>
-                                    <span className="text-zinc-500">PEN</span>
-                                </div>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        <Button
-                            onClick={() => setModal(true)}
-                            className="bg-[#D3FF0A] text-black hover:bg-[#b8e600] text-xs font-semibold h-8 px-4 ml-2"
-                        >
-                            Nueva
-                            <ChevronDown className="w-3 h-3 ml-1 opacity-60" />
-                        </Button>
-                    </div>
+                {/* --- Vistas guardadas --- */}
+                <div className="flex justify-end">
+                    <Button variant="outline" className="h-8 text-[11px] font-medium bg-[#18181b] border-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-800 gap-1.5 rounded-md px-3 shadow-none">
+                        <Bookmark className="w-3.5 h-3.5 opacity-70" />
+                        Vistas guardadas
+                        <ChevronDown className="w-3.5 h-3.5 opacity-50 ml-1" />
+                    </Button>
                 </div>
 
-                {/* --- Active filter chips (Example) --- */}
-                <div className="flex gap-2 text-xs">
-                    <div className="flex items-center gap-1 bg-[#D3FF0A]/10 border border-[#D3FF0A]/20 text-[#D3FF0A] px-2 py-0.5 rounded">
-                        <span>PEN</span>
-                    </div>
-                    <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 text-zinc-400 px-2 py-0.5 rounded">
-                        <span>PEN</span>
+                {/* --- MTabs Wrapper --- */}
+                <div className="flex justify-start">
+                    {/* --- PEN Tabs --- */}
+                    <div className="flex items-center gap-1 bg-[#18181b] rounded-[6px] p-1 w-fit border border-zinc-800/80">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D3FF0A]/10 text-[#D3FF0A] rounded-[4px] text-xs font-medium">
+                            <Filter className="w-3 h-3" />
+                            PEN
+                        </button>
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-500 hover:text-zinc-300 rounded-[4px] text-xs font-medium transition-colors">
+                            PEN
+                        </button>
                     </div>
                 </div>
 
                 {/* --- KPIs Cards --- */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {/* Balance */}
-                    <Card className="bg-[#18181b] border-transparent hover:border-zinc-800 transition-colors">
-                        <CardHeader className="p-4 pb-1">
-                            <span className="text-xs font-medium text-zinc-500">Balance</span>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-1">
-                            <div className="text-2xl font-bold text-[#D3FF0A]">
-                                {formatearMoneda(resumen.balanceTotal, resumen.moneda)}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-[#18181b] rounded-xl p-5 border border-zinc-800/50 flex flex-col justify-between h-[104px]">
+                        <div className="text-zinc-400 text-[13px] font-medium">Balance</div>
+                        <div className="flex items-baseline gap-1 mt-2">
+                            <span className="text-[26px] font-semibold text-[#00E676] tracking-tight">
+                                {formatearMoneda(resumen.balanceTotal, "").replace("PEN", "").trim()}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                        </div>
+                    </div>
 
                     {/* Gastos */}
-                    <Card className="bg-[#18181b] border-transparent hover:border-zinc-800 transition-colors">
-                        <CardHeader className="p-4 pb-1">
-                            <span className="text-xs font-medium text-zinc-500">Gastos</span>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-1">
-                            <div className="text-2xl font-bold text-rose-500">
-                                {formatearMoneda(-resumen.gastosMes, resumen.moneda)}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-[#18181b] rounded-xl p-5 border border-zinc-800/50 flex flex-col justify-between h-[104px]">
+                        <div className="text-zinc-400 text-[13px] font-medium">Gastos</div>
+                        <div className="flex items-baseline gap-1 mt-2">
+                            <span className="text-[26px] font-semibold text-[#FF4444] tracking-tight">
+                                {formatearMoneda(-resumen.gastosMes, "").replace("PEN", "").trim()}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                        </div>
+                    </div>
 
                     {/* Ingresos */}
-                    <Card className="bg-[#18181b] border-transparent hover:border-zinc-800 transition-colors">
-                        <CardHeader className="p-4 pb-1">
-                            <span className="text-xs font-medium text-zinc-500">Ingresos</span>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-1">
-                            <div className="text-2xl font-bold text-emerald-500">
-                                {formatearMoneda(resumen.ingresosMes, resumen.moneda)}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div className="bg-[#18181b] rounded-xl p-5 border border-zinc-800/50 flex flex-col justify-between h-[104px]">
+                        <div className="text-zinc-400 text-[13px] font-medium">Ingresos</div>
+                        <div className="flex items-baseline gap-1 mt-2">
+                            <span className="text-[26px] font-semibold text-[#00E676] tracking-tight">
+                                {formatearMoneda(resumen.ingresosMes, "").replace("PEN", "").trim()}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                        </div>
+                    </div>
 
                     {/* Category Top */}
-                    <Card className="bg-[#18181b] border-transparent hover:border-zinc-800 transition-colors">
-                        <CardHeader className="p-4 pb-1">
-                            <span className="text-xs font-medium text-zinc-500">Categoria con mas gastos</span>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-1 flex items-center gap-3">
-                            {topCategoria ? (
-                                <>
-                                    <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                                        {topCategoria.name.split(" ")[0]}
+                    <div className="bg-[#18181b] rounded-xl p-5 border border-zinc-800/50 flex flex-col justify-between h-[104px]">
+                        <div className="text-zinc-400 text-[13px] font-medium">Categoría con más gastos</div>
+                        {topCategoria ? (
+                            <div className="flex items-center gap-3 mt-2">
+                                <div className="w-8 h-8 rounded-full bg-zinc-800/80 flex items-center justify-center text-[15px] grayscale opacity-90">
+                                    {topCategoria.name.split(" ")[0]}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-[15px] font-medium text-white mb-0.5">{topCategoria.name.split(" ").slice(1).join(" ")}</div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-[12px] font-semibold text-[#FF4444]">{formatearMoneda(-topCategoria.value, "").replace("PEN", "").trim()}</span>
+                                        <span className="text-[9px] text-zinc-600 font-medium uppercase">PEN</span>
                                     </div>
-                                    <div>
-                                        <div className="text-sm font-medium text-zinc-200">{topCategoria.name.split(" ").slice(1).join(" ")}</div>
-                                        <div className="text-xs text-rose-500">{formatearMoneda(-topCategoria.value, resumen.moneda)}</div>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="text-sm text-zinc-600">Sin datos</div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-[13px] text-zinc-600 mt-2">Sin datos</div>
+                        )}
+                    </div>
                 </div>
 
                 {/* --- Transaction Table --- */}
-                <div className="bg-[#09090b] rounded-lg overflow-hidden border border-zinc-900">
+                <div className="pt-2">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
+                        <table className="w-full text-left text-[13px]">
                             <thead>
-                                <tr className="border-b border-zinc-800/50">
-                                    <th className="py-3 px-4 w-10">
+                                <tr className="border-b border-zinc-800/60">
+                                    <th className="py-3 px-3 w-12 text-center">
                                         <div
                                             onClick={() => toggleRowSelection("all")}
-                                            className={`w-4 h-4 rounded border cursor-pointer flex items-center justify-center transition-colors ${selectedRows.length === transacciones.length && transacciones.length > 0 ? "bg-zinc-700 border-zinc-600" : "border-zinc-700 hover:border-zinc-500"}`}
+                                            className={`w-3.5 h-3.5 rounded-[4px] border cursor-pointer mx-auto flex items-center justify-center transition-colors ${selectedRows.length === transacciones.length && transacciones.length > 0 ? "bg-zinc-700 border-zinc-600" : "border-zinc-700 hover:border-zinc-500"}`}
                                         >
-                                            {selectedRows.length === transacciones.length && transacciones.length > 0 && <Check className="w-3 h-3 text-white" />}
+                                            {selectedRows.length === transacciones.length && transacciones.length > 0 && <Check className="w-2.5 h-2.5 text-white" />}
                                         </div>
                                     </th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium cursor-pointer hover:text-zinc-300 group">
-                                        <div className="flex items-center gap-1">Fecha <ChevronDown className="w-3 h-3 opacity-0 group-hover:opacity-100" /></div>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium cursor-pointer hover:text-white group transition-colors">
+                                        <div className="flex items-center gap-1.5">Fecha <ArrowDown className="w-3 h-3 text-zinc-500" /></div>
                                     </th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium">Descripción</th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium text-right">Monto</th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium">Categoría</th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium">Cuenta</th>
-                                    <th className="py-3 px-4 text-zinc-500 font-medium text-center">Origen</th>
-                                    <th className="py-3 px-4 w-10"></th>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium">Descripción</th>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium">Monto</th>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium">Categoría</th>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium">Cuenta</th>
+                                    <th className="py-3 px-3 text-zinc-300 font-medium">Origen</th>
+                                    <th className="py-3 px-3 w-12"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-800/30">
                                 {cargando ? (
                                     Array.from({ length: 5 }).map((_, i) => (
                                         <tr key={i}>
-                                            <td colSpan={8} className="py-4 px-4 text-zinc-700 text-center animate-pulse">Cargando...</td>
+                                            <td colSpan={8} className="py-4 px-3 text-zinc-700 text-center animate-pulse">Cargando...</td>
                                         </tr>
                                     ))
                                 ) : transacciones.length === 0 ? (
@@ -458,48 +386,53 @@ export default function TransactionsPage() {
                                     transacciones.map((tx) => (
                                         <tr
                                             key={tx.id}
-                                            className={`group transition-colors ${selectedRows.includes(tx.id) ? "bg-zinc-900/60" : "hover:bg-zinc-900/30"}`}
+                                            className={`group transition-colors ${selectedRows.includes(tx.id) ? "bg-zinc-900/50" : "hover:bg-zinc-900/20"}`}
                                         >
-                                            <td className="py-3 px-4">
+                                            <td className="py-4 px-3 align-middle">
                                                 <div
                                                     onClick={() => toggleRowSelection(tx.id)}
-                                                    className={`w-4 h-4 rounded border cursor-pointer flex items-center justify-center transition-colors ${selectedRows.includes(tx.id) ? "bg-zinc-700 border-zinc-600" : "border-zinc-700 opacity-60 group-hover:opacity-100"}`}
+                                                    className={`w-3.5 h-3.5 mx-auto rounded-[4px] border cursor-pointer flex items-center justify-center transition-colors ${selectedRows.includes(tx.id) ? "bg-zinc-700 border-zinc-600" : "border-zinc-700 opacity-20 group-hover:opacity-100"}`}
                                                 >
-                                                    {selectedRows.includes(tx.id) && <Check className="w-3 h-3 text-white" />}
+                                                    {selectedRows.includes(tx.id) && <Check className="w-2.5 h-2.5 text-white" />}
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">
+                                            <td className="py-4 px-3 text-zinc-300 font-medium whitespace-nowrap capitalize align-middle">
                                                 {formatearFecha(tx.date)}
                                             </td>
-                                            <td className="py-3 px-4 font-medium text-zinc-300">
+                                            <td className="py-4 px-3 font-medium text-white align-middle">
                                                 {tx.description}
                                             </td>
-                                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                                                <span className={`font-medium ${tx.type === "income" ? "text-emerald-500" : "text-rose-500"}`}>
-                                                    {tx.amountOriginal} <span className="text-[10px] text-zinc-600">PEN</span>
-                                                </span>
+                                            <td className="py-4 px-3 whitespace-nowrap align-middle">
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className={`text-[13px] font-medium ${tx.type === "income" ? "text-[#00E676]" : "text-[#FF4444]"}`}>
+                                                        {tx.type === "income" ? "" : "-"}{Math.abs(tx.amountOriginal).toFixed(2).replace(".", ",")}
+                                                    </span>
+                                                    <span className="text-[9px] text-zinc-500 font-medium uppercase">PEN</span>
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-4 px-3 align-middle">
                                                 {tx.category ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{tx.category.icon}</span>
-                                                        <span className="text-zinc-400 capitalize">{tx.category.name}</span>
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-[#18181b]/80 border border-zinc-800/80 w-fit">
+                                                        <span className="text-[12px] opacity-90">{tx.category.icon}</span>
+                                                        <span className="text-[12px] text-zinc-300 font-medium">{(tx.category.name || '').replace(/^[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]\s?/, '')}</span>
                                                     </div>
                                                 ) : (
                                                     <span className="text-zinc-700">-</span>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4 text-zinc-500">
+                                            <td className="py-4 px-3 text-zinc-500 font-medium align-middle">
                                                 {tx.account?.name || "-"}
                                             </td>
-                                            <td className="py-3 px-4 text-center text-zinc-600">
-                                                <Wallet className="w-3.5 h-3.5 mx-auto opacity-50" />
+                                            <td className="py-4 px-3 align-middle">
+                                                <div className="flex items-center text-zinc-500">
+                                                    <svg className="w-4 h-4 ml-1 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 text-right">
+                                            <td className="py-4 px-3 text-center align-middle">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <button className="p-1 text-zinc-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                                                            <MoreVertical className="w-3.5 h-3.5" />
+                                                        <button className="p-1 text-zinc-500 hover:text-white transition-colors">
+                                                            <MoreVertical className="w-4 h-4" />
                                                         </button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end" className="bg-[#18181b] border-zinc-800 text-zinc-300">
@@ -520,35 +453,52 @@ export default function TransactionsPage() {
                     </div>
 
                     {/* Pagination */}
-                    <div className="flex items-center justify-end px-4 py-3 border-t border-zinc-800/50 select-none">
-                        <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between pt-5 select-none mt-1">
+                        <div className="text-[12px] text-zinc-500 font-medium">
+                            {total} transacciones
+                        </div>
+                        <div className="flex items-center gap-1.5">
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-zinc-600 hover:text-white hover:bg-zinc-800 disabled:opacity-30"
+                                className="h-8 w-8 bg-[#18181b] border border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-30 rounded-[6px]"
+                                disabled={page <= 1}
+                                onClick={() => setPage(1)}
+                            >
+                                <span className="text-[11px] font-semibold">{"<<"}</span>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 bg-[#18181b] border border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-30 rounded-[6px]"
                                 disabled={page <= 1}
                                 onClick={() => setPage(p => p - 1)}
                             >
-                                <ChevronLeft className="w-4 h-4" />
+                                <ChevronLeft className="w-3.5 h-3.5" />
                             </Button>
-                            <div className="text-xs text-zinc-500 px-2">
+                            <div className="text-[12px] text-white font-medium px-4 flex h-8 items-center bg-[#18181b] rounded-[6px] border border-zinc-800/80">
                                 Página {page} de {totalPages || 1}
                             </div>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-zinc-600 hover:text-white hover:bg-zinc-800 disabled:opacity-30"
+                                className="h-8 w-8 bg-[#18181b] border border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-30 rounded-[6px]"
                                 disabled={page >= totalPages}
                                 onClick={() => setPage(p => p + 1)}
                             >
-                                <ChevronRight className="w-4 h-4" />
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 bg-[#18181b] border border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-30 rounded-[6px]"
+                                disabled={page >= totalPages}
+                                onClick={() => setPage(totalPages)}
+                            >
+                                <span className="text-[11px] font-semibold">{">>"}</span>
                             </Button>
                         </div>
                     </div>
-                </div>
-
-                <div className="text-xs text-zinc-600 px-1">
-                    {total} transacciones
                 </div>
 
             </main>
