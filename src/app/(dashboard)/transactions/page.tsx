@@ -44,6 +44,7 @@ import {
 import {
     listarTransacciones,
     crearTransaccion,
+    editarTransaccion,
     eliminarTransaccion,
     obtenerResumenDashboard,
 } from "@/lib/actions/transactions";
@@ -77,12 +78,22 @@ type TransactionItem = {
     description: string;
     type: "income" | "expense";
     amountOriginal: number;
-    account?: { name?: string; currency?: string };
-    category?: { name?: string; icon?: string } | null;
+    accountId?: string | null;
+    categoryId?: string | null;
+    account?: { id?: string; name?: string; currency?: string };
+    category?: { id?: string; name?: string; icon?: string } | null;
     tags?: string[];
 };
 
 type SelectItem = { id: string; name: string; currency?: string; icon?: string };
+type EditFormState = {
+    date: string;
+    description: string;
+    amount: string;
+    type: "income" | "expense";
+    categoryId: string;
+    accountId: string;
+};
 
 // --- Main Component ---
 export default function TransactionsPage() {
@@ -112,6 +123,20 @@ export default function TransactionsPage() {
     const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
     // Feature Modals
+    const [assignGoalModalOpen, setAssignGoalModalOpen] = useState(false);
+    const [selectedTransactionForGoal, setSelectedTransactionForGoal] = useState<TransactionItem | null>(null);
+    const [assignGoalTab, setAssignGoalTab] = useState<"sugerencias" | "manual">("sugerencias");
+    const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+    const [editForm, setEditForm] = useState<EditFormState>({
+        date: "",
+        description: "",
+        amount: "",
+        type: "expense",
+        categoryId: "",
+        accountId: "",
+    });
     const [categoriesModal, setCategoriesModal] = useState(false);
     const [createCategoryModal, setCreateCategoryModal] = useState(false);
     const [searchCategory, setSearchCategory] = useState("");
@@ -215,6 +240,62 @@ export default function TransactionsPage() {
             toast({ title: "Eliminado", description: "Transaccion eliminada.", variant: "success" });
             cargarDatos();
         }
+    };
+
+    const abrirModalAsignarMeta = (tx: TransactionItem) => {
+        setSelectedTransactionForGoal(tx);
+        setAssignGoalTab("sugerencias");
+        setAssignGoalModalOpen(true);
+    };
+
+    const abrirPanelEditar = (tx: TransactionItem) => {
+        const isoDate = new Date(tx.date).toISOString().split("T")[0];
+        setEditingTransaction(tx);
+        setEditForm({
+            date: isoDate,
+            description: tx.description || "",
+            amount: String(Math.abs(tx.amountOriginal ?? 0)),
+            type: tx.type || "expense",
+            categoryId: tx.category?.id || tx.categoryId || "",
+            accountId: tx.account?.id || tx.accountId || "",
+        });
+        setIsEditPanelOpen(true);
+    };
+
+    const handleGuardarEdicion = async () => {
+        if (!editingTransaction) return;
+
+        const amount = Number(editForm.amount);
+        if (!editForm.description.trim()) {
+            toast({ title: "Error", description: "La descripción es obligatoria.", variant: "error" });
+            return;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            toast({ title: "Error", description: "El monto debe ser mayor a 0.", variant: "error" });
+            return;
+        }
+
+        setIsSavingEdit(true);
+        const result = await editarTransaccion({
+            id: editingTransaction.id,
+            date: editForm.date,
+            description: editForm.description,
+            amount,
+            type: editForm.type,
+            categoryId: editForm.categoryId || null,
+            accountId: editForm.accountId || null,
+        });
+        setIsSavingEdit(false);
+
+        if (result.error) {
+            toast({ title: "Error", description: result.error, variant: "error" });
+            return;
+        }
+
+        toast({ title: "Transacción actualizada", description: "Los cambios se guardaron correctamente.", variant: "success" });
+        setIsEditPanelOpen(false);
+        setEditingTransaction(null);
+        await cargarDatos();
     };
 
     const toggleRowSelection = (id: string) => {
@@ -637,11 +718,15 @@ export default function TransactionsPage() {
                                                             <MoreVertical className="w-4 h-4" />
                                                         </button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="bg-[#18181b] border-zinc-800 text-zinc-300">
-                                                        <DropdownMenuItem className="text-xs">Editar</DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-xs">Duplicar</DropdownMenuItem>
+                                                    <DropdownMenuContent align="end" className="bg-[#18181b] border-zinc-800 text-zinc-300 min-w-[170px]">
+                                                        <DropdownMenuItem onClick={() => abrirModalAsignarMeta(tx)} className="text-xs cursor-pointer">
+                                                            Asignar a meta
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => abrirPanelEditar(tx)} className="text-xs cursor-pointer">
+                                                            Editar
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuSeparator className="bg-zinc-800" />
-                                                        <DropdownMenuItem onClick={() => handleEliminar(tx.id)} className="text-xs text-rose-500 focus:text-rose-400 focus:bg-rose-500/10">
+                                                        <DropdownMenuItem onClick={() => handleEliminar(tx.id)} className="text-xs text-rose-500 focus:text-rose-400 focus:bg-rose-500/10 cursor-pointer">
                                                             <Trash2 className="w-3 h-3 mr-2" /> Eliminar
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
@@ -704,6 +789,131 @@ export default function TransactionsPage() {
                 </div>
 
             </main>
+
+            {isEditPanelOpen && editingTransaction && (
+                <div className="fixed inset-0 z-[62] flex animate-in fade-in duration-200">
+                    <div className="flex-1 bg-black/35 transition-opacity duration-200" onClick={() => setIsEditPanelOpen(false)} />
+                    <aside className="w-full max-w-[440px] bg-[#2a2a2d] border-l border-zinc-700/60 shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 ease-out">
+                        <div className="p-5 border-b border-zinc-700/60">
+                            <h3 className="text-[16px] font-semibold text-zinc-100">Editar transacción</h3>
+                            <p className="text-[12px] text-zinc-400 mt-1">Editar detalles de transacción</p>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                            <div className="rounded-xl border border-zinc-700/70 bg-[#222225] p-4 text-center">
+                                <div className="w-10 h-10 rounded-full border border-zinc-700/80 mx-auto mb-3 flex items-center justify-center text-zinc-400">
+                                    <Lock className="w-4 h-4" />
+                                </div>
+                                <p className="text-[13px] text-zinc-200 font-medium">Función Pro</p>
+                                <p className="text-[11px] text-zinc-500 mt-1">Sube comprobantes con el plan Pro o Premium</p>
+                                <Button variant="outline" className="mt-3 h-7 text-[11px] border-[#D3FF0A]/30 text-[#D3FF0A] bg-[#D3FF0A]/10 hover:bg-[#D3FF0A]/20">
+                                    Mejorar plan
+                                </Button>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Fecha</Label>
+                                <Input
+                                    type="date"
+                                    value={editForm.date}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
+                                    className="bg-[#3a3a3f] border-zinc-700 text-zinc-100"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Descripción</Label>
+                                <Input
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                                    className="bg-[#3a3a3f] border-zinc-700 text-zinc-100"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Monto</Label>
+                                <div className="grid grid-cols-[1fr_100px] gap-2">
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editForm.amount}
+                                        onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
+                                        className="bg-[#3a3a3f] border-zinc-700 text-zinc-100"
+                                    />
+                                    <div className="h-10 rounded-md bg-[#3a3a3f] border border-zinc-700 text-zinc-300 text-xs flex items-center justify-center uppercase">
+                                        PEN
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Categoría</Label>
+                                <select
+                                    value={editForm.categoryId}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+                                    className="w-full h-10 rounded-md bg-[#3a3a3f] border border-zinc-700 px-3 text-sm text-zinc-100"
+                                >
+                                    <option value="">Sin categoría</option>
+                                    {categorias.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Tipo</Label>
+                                <select
+                                    value={editForm.type}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value as "income" | "expense" }))}
+                                    className="w-full h-10 rounded-md bg-[#3a3a3f] border border-zinc-700 px-3 text-sm text-zinc-100"
+                                >
+                                    <option value="income">Ingreso</option>
+                                    <option value="expense">Gasto</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Cuenta</Label>
+                                <select
+                                    value={editForm.accountId}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, accountId: e.target.value }))}
+                                    className="w-full h-10 rounded-md bg-[#3a3a3f] border border-zinc-700 px-3 text-sm text-zinc-100"
+                                >
+                                    <option value="">Sin cuenta</option>
+                                    {cuentas.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[12px] text-zinc-400">Tags</Label>
+                                <div className="h-10 rounded-md bg-[#3a3a3f] border border-zinc-700 px-3 text-sm text-zinc-500 flex items-center">
+                                    Seleccionar etiquetas
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-5 border-t border-zinc-700/60 space-y-2">
+                            <Button
+                                type="button"
+                                onClick={() => abrirModalAsignarMeta(editingTransaction)}
+                                className="w-full h-9 bg-[#3a3a3f] text-zinc-100 hover:bg-[#47474d]"
+                            >
+                                Asignar a Meta
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleGuardarEdicion}
+                                disabled={isSavingEdit}
+                                className="w-full h-9 bg-[#7E9E2E] text-black hover:bg-[#90b236] font-semibold"
+                            >
+                                {isSavingEdit ? "Guardando..." : "Guardar"}
+                            </Button>
+                        </div>
+                    </aside>
+                </div>
+            )}
 
             {/* --- Modal / Slide-over --- */}
             {modal && (
@@ -857,6 +1067,73 @@ export default function TransactionsPage() {
                                 >
                                     Guardar Transacción
                                 </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {assignGoalModalOpen && selectedTransactionForGoal && (
+                <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-[2px] px-4">
+                    <div className="w-full max-w-[620px] rounded-xl border border-zinc-700 bg-[#1b1b1d] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-zinc-700/70">
+                            <div>
+                                <h3 className="text-[18px] font-semibold text-zinc-100">Asignar a Metas</h3>
+                                <p className="text-[12px] text-zinc-400 mt-1">Esta transacción se asignará 100% a tu meta seleccionada.</p>
+                            </div>
+                            <button
+                                onClick={() => setAssignGoalModalOpen(false)}
+                                className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="px-5 py-4">
+                            <div className="rounded-lg bg-[#2b2b2e] border border-zinc-700 px-4 py-3">
+                                <p className="text-[14px] font-medium text-zinc-100 leading-tight">{selectedTransactionForGoal.description}</p>
+                                <p className="text-[28px] font-semibold text-zinc-100 mt-1 tracking-tight">
+                                    {formatearMoneda(Math.abs(selectedTransactionForGoal.amountOriginal), selectedTransactionForGoal.account?.currency || "PEN")}
+                                </p>
+                            </div>
+
+                            <div className="mt-4 rounded-lg border border-zinc-700 overflow-hidden">
+                                <div className="grid grid-cols-2 bg-[#2b2b2e]">
+                                    <button
+                                        onClick={() => setAssignGoalTab("sugerencias")}
+                                        className={`h-9 text-[13px] font-medium transition-colors ${assignGoalTab === "sugerencias" ? "bg-[#D3FF0A] text-black" : "text-zinc-300 hover:bg-zinc-700/40"}`}
+                                    >
+                                        Sugerencias
+                                    </button>
+                                    <button
+                                        onClick={() => setAssignGoalTab("manual")}
+                                        className={`h-9 text-[13px] font-medium transition-colors ${assignGoalTab === "manual" ? "bg-[#3a3a3f] text-zinc-100" : "text-zinc-300 hover:bg-zinc-700/40"}`}
+                                    >
+                                        Manual
+                                    </button>
+                                </div>
+
+                                <div className="bg-[#1f1f22] p-4 min-h-[120px]">
+                                    {assignGoalTab === "sugerencias" ? (
+                                        <div className="rounded-md border border-zinc-700/80 bg-[#232326] px-3 py-3 text-[13px] text-zinc-300">
+                                            No se encontraron metas activas. Crea una meta primero para obtener sugerencias de asignación.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
+                                                Selecciona una meta (próximamente)
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
+                                                    % asignado: 100%
+                                                </div>
+                                                <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
+                                                    Monto asignado: {formatearMoneda(Math.abs(selectedTransactionForGoal.amountOriginal), selectedTransactionForGoal.account?.currency || "PEN")}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

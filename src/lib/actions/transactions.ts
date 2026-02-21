@@ -56,8 +56,8 @@ export async function listarTransacciones(opciones?: {
             prisma.transaction.findMany({
                 where,
                 include: {
-                    account: { select: { name: true, currency: true } },
-                    category: { select: { name: true, icon: true, color: true } },
+                    account: { select: { id: true, name: true, currency: true } },
+                    category: { select: { id: true, name: true, icon: true, color: true } },
                 },
                 orderBy: { date: "desc" },
                 skip: (page - 1) * pageSize,
@@ -207,6 +207,173 @@ export async function crearTransaccion(formData: FormData) {
 /**
  * Eliminar una transacción (soft delete) y revertir el balance.
  */
+export async function editarTransaccion(input: {
+    id: string;
+    date: string;
+    description: string;
+    amount: number;
+    type: "income" | "expense";
+    accountId?: string | null;
+    categoryId?: string | null;
+}) {
+    try {
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "transactions:update:user",
+            key: userId,
+            limit: 30,
+            windowMs: 60_000,
+        });
+
+        const description = input.description?.trim();
+        const amount = Number(input.amount);
+        const type = input.type;
+        const accountId = input.accountId || null;
+        const categoryId = input.categoryId || null;
+        const date = input.date ? new Date(input.date) : new Date();
+
+        if (!input.id) return { error: "Transacción inválida." };
+        if (!description) return { error: "La descripción es obligatoria." };
+        if (!Number.isFinite(amount) || amount <= 0) return { error: "El monto debe ser mayor a 0." };
+        if (type !== "income" && type !== "expense") return { error: "Tipo inválido." };
+        if (Number.isNaN(date.getTime())) return { error: "Fecha inválida." };
+
+        const transaccionActual = await prisma.transaction.findFirst({
+            where: {
+                id: input.id,
+                workspaceId: workspace.id,
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                accountId: true,
+                categoryId: true,
+                description: true,
+                amountOriginal: true,
+                type: true,
+                date: true,
+            },
+        });
+
+        if (!transaccionActual) return { error: "Transacción no encontrada." };
+
+        let cuentaNueva: { id: string; currency: string } | null = null;
+        if (accountId) {
+            cuentaNueva = await prisma.account.findFirst({
+                where: { id: accountId, workspaceId: workspace.id, deletedAt: null },
+                select: { id: true, currency: true },
+            });
+            if (!cuentaNueva) return { error: "Cuenta no encontrada." };
+        }
+
+        if (categoryId) {
+            const categoria = await prisma.category.findFirst({
+                where: {
+                    id: categoryId,
+                    workspaceId: workspace.id,
+                    deletedAt: null,
+                    OR: [
+                        { ownerUserId: SYSTEM_CATEGORY_OWNER_ID },
+                        { ownerUserId: userId },
+                    ],
+                },
+                select: { id: true },
+            });
+
+            if (!categoria) {
+                return { error: "Categoría no válida para este usuario." };
+            }
+        }
+
+        const impactoAnterior = transaccionActual.type === "income"
+            ? Number(transaccionActual.amountOriginal)
+            : -Number(transaccionActual.amountOriginal);
+
+        const impactoNuevo = type === "income" ? amount : -amount;
+
+        await prisma.$transaction(async (tx: TxClient) => {
+            if (transaccionActual.accountId) {
+                await tx.account.update({
+                    where: { id: transaccionActual.accountId },
+                    data: {
+                        currentBalance: {
+                            increment: -impactoAnterior,
+                        },
+                    },
+                });
+            }
+
+            if (accountId) {
+                await tx.account.update({
+                    where: { id: accountId },
+                    data: {
+                        currentBalance: {
+                            increment: impactoNuevo,
+                        },
+                    },
+                });
+            }
+
+            const updated = await tx.transaction.updateMany({
+                where: { id: input.id, workspaceId: workspace.id, deletedAt: null },
+                data: {
+                    accountId,
+                    categoryId,
+                    amountOriginal: amount,
+                    currencyOriginal: cuentaNueva?.currency || workspace.baseCurrency,
+                    amountBase: amount,
+                    baseCurrency: workspace.baseCurrency,
+                    description,
+                    type,
+                    date,
+                },
+            });
+
+            if (updated.count === 0) {
+                throw new Error("No se pudo actualizar la transacción");
+            }
+
+            await tx.auditLog.create({
+                data: {
+                    workspaceId: workspace.id,
+                    actorId: userId,
+                    action: "update",
+                    entity: "transaction",
+                    entityId: input.id,
+                    before: {
+                        description: transaccionActual.description,
+                        amount: Number(transaccionActual.amountOriginal),
+                        type: transaccionActual.type,
+                        accountId: transaccionActual.accountId,
+                        categoryId: transaccionActual.categoryId,
+                        date: transaccionActual.date.toISOString(),
+                    },
+                    after: {
+                        description,
+                        amount,
+                        type,
+                        accountId,
+                        categoryId,
+                        date: date.toISOString(),
+                    },
+                },
+            });
+        });
+
+        revalidatePath("/transactions");
+        revalidatePath("/dashboard");
+        return { success: true };
+    } catch (error) {
+        if (isRateLimitError(error)) {
+            return { error: error.message };
+        }
+        if (error instanceof Error) {
+            return { error: error.message || "Error al editar la transacción." };
+        }
+        return { error: "Error al editar la transacción." };
+    }
+}
+
 export async function eliminarTransaccion(id: string) {
     try {
         const { workspace, userId } = await obtenerWorkspace("member");
