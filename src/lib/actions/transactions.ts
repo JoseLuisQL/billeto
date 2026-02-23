@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { aplicarReglas } from "@/lib/actions/rules";
 import { requireWorkspaceAccess } from "@/lib/security/access";
@@ -201,6 +202,124 @@ export async function crearTransaccion(formData: FormData) {
         }
         console.error("Error al crear transacción:", error);
         return { error: "Error al crear la transacción." };
+    }
+}
+
+export async function crearTransferenciaEntreCuentas(formData: FormData) {
+    try {
+        const { workspace, userId } = await obtenerWorkspace("member");
+        enforceRateLimit({
+            bucket: "transactions:transfer:user",
+            key: userId,
+            limit: 15,
+            windowMs: 60_000,
+        });
+
+        const fromAccountId = (formData.get("fromAccountId") as string)?.trim();
+        const toAccountId = (formData.get("toAccountId") as string)?.trim();
+        const amount = Number.parseFloat((formData.get("amount") as string) || "0");
+        const dateInput = (formData.get("date") as string) || "";
+        const descriptionInput = ((formData.get("description") as string) || "").trim();
+        const date = dateInput ? new Date(dateInput) : new Date();
+
+        if (!fromAccountId || !toAccountId) return { error: "Debes seleccionar cuentas de origen y destino." };
+        if (fromAccountId === toAccountId) return { error: "La cuenta destino debe ser distinta a la cuenta origen." };
+        if (!Number.isFinite(amount) || amount <= 0) return { error: "El monto debe ser mayor a 0." };
+        if (Number.isNaN(date.getTime())) return { error: "Fecha inválida." };
+
+        const [fromAccount, toAccount] = await Promise.all([
+            prisma.account.findFirst({
+                where: { id: fromAccountId, workspaceId: workspace.id, deletedAt: null },
+                select: { id: true, name: true, currency: true },
+            }),
+            prisma.account.findFirst({
+                where: { id: toAccountId, workspaceId: workspace.id, deletedAt: null },
+                select: { id: true, name: true, currency: true },
+            }),
+        ]);
+
+        if (!fromAccount || !toAccount) return { error: "Cuenta origen o destino no encontrada." };
+
+        const transferGroupId = randomUUID();
+        const baseDescription = descriptionInput.length > 0 ? descriptionInput : `Transferencia ${fromAccount.name} → ${toAccount.name}`;
+
+        await prisma.$transaction(async (tx: TxClient) => {
+            const salida = await tx.transaction.create({
+                data: {
+                    workspaceId: workspace.id,
+                    accountId: fromAccount.id,
+                    amountOriginal: amount,
+                    currencyOriginal: fromAccount.currency,
+                    amountBase: amount,
+                    baseCurrency: workspace.baseCurrency,
+                    description: `Transferencia a ${toAccount.name}${descriptionInput ? ` · ${descriptionInput}` : ""}`,
+                    type: "expense",
+                    source: "transfer",
+                    transferGroupId,
+                    transferPeerAccountId: toAccount.id,
+                    date,
+                },
+            });
+
+            const entrada = await tx.transaction.create({
+                data: {
+                    workspaceId: workspace.id,
+                    accountId: toAccount.id,
+                    amountOriginal: amount,
+                    currencyOriginal: toAccount.currency,
+                    amountBase: amount,
+                    baseCurrency: workspace.baseCurrency,
+                    description: `Transferencia desde ${fromAccount.name}${descriptionInput ? ` · ${descriptionInput}` : ""}`,
+                    type: "income",
+                    source: "transfer",
+                    transferGroupId,
+                    transferPeerAccountId: fromAccount.id,
+                    date,
+                },
+            });
+
+            await tx.account.update({
+                where: { id: fromAccount.id },
+                data: {
+                    currentBalance: { decrement: amount },
+                },
+            });
+
+            await tx.account.update({
+                where: { id: toAccount.id },
+                data: {
+                    currentBalance: { increment: amount },
+                },
+            });
+
+            await tx.auditLog.create({
+                data: {
+                    workspaceId: workspace.id,
+                    actorId: userId,
+                    action: "create",
+                    entity: "transaction",
+                    entityId: salida.id,
+                    after: {
+                        operation: "transfer",
+                        transferGroupId,
+                        fromAccountId: fromAccount.id,
+                        toAccountId: toAccount.id,
+                        amount,
+                        description: baseDescription,
+                        pairedTransactionId: entrada.id,
+                    },
+                },
+            });
+        });
+
+        revalidatePath("/accounts");
+        revalidatePath("/transactions");
+        revalidatePath("/dashboard");
+
+        return { success: true, transferGroupId };
+    } catch (error) {
+        if (isRateLimitError(error)) return { error: error.message };
+        return { error: "Error al crear transferencia." };
     }
 }
 

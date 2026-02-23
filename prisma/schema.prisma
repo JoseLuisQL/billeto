@@ -117,9 +117,13 @@ model Account {
   name           String
   normalizedName String        @map("normalized_name")
   type           String        @default("cash")
+  icon           String?
+  accountNumber  String?       @map("account_number")
   currency       String        @default("PEN")
   initialBalance Decimal       @default(0) @map("initial_balance") @db.Decimal(15, 2)
   currentBalance Decimal       @default(0) @map("current_balance") @db.Decimal(15, 2)
+  isFavorite     Boolean       @default(false) @map("is_favorite")
+  favoriteRank   Int?          @map("favorite_rank")
   deletedAt      DateTime?     @map("deleted_at")
   deletedBy      String?       @map("deleted_by")
   createdAt      DateTime      @default(now()) @map("created_at")
@@ -128,6 +132,7 @@ model Account {
   transactions   Transaction[]
 
   @@unique([workspaceId, normalizedName])
+  @@index([workspaceId, isFavorite, favoriteRank])
   @@map("accounts")
 }
 
@@ -155,34 +160,37 @@ model Category {
 
 /// Transacción financiera (gasto, ingreso o transferencia)
 model Transaction {
-  id               String       @id @default(cuid())
-  workspaceId      String       @map("workspace_id")
-  accountId        String?      @map("account_id")
-  categoryId       String?      @map("category_id")
-  amountOriginal   Decimal      @map("amount_original") @db.Decimal(15, 2)
-  currencyOriginal String       @map("currency_original")
-  amountBase       Decimal      @map("amount_base") @db.Decimal(15, 2)
-  baseCurrency     String       @map("base_currency")
-  fxRateId         String?      @map("fx_rate_id")
-  description      String
-  type             String       @default("expense")
-  status           String       @default("posted")
-  date             DateTime     @default(now())
-  source           String       @default("web")
-  requestId        String?      @map("request_id")
-  deletedAt        DateTime?    @map("deleted_at")
-  deletedBy        String?      @map("deleted_by")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
-  attachments      Attachment[]
-  account          Account?     @relation(fields: [accountId], references: [id])
-  category         Category?    @relation(fields: [categoryId], references: [id])
-  fxRate           FXRate?      @relation(fields: [fxRateId], references: [id])
-  workspace        Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                   String       @id @default(cuid())
+  workspaceId          String       @map("workspace_id")
+  accountId            String?      @map("account_id")
+  categoryId           String?      @map("category_id")
+  amountOriginal       Decimal      @map("amount_original") @db.Decimal(15, 2)
+  currencyOriginal     String       @map("currency_original")
+  amountBase           Decimal      @map("amount_base") @db.Decimal(15, 2)
+  baseCurrency         String       @map("base_currency")
+  fxRateId             String?      @map("fx_rate_id")
+  description          String
+  type                 String       @default("expense")
+  status               String       @default("posted")
+  date                 DateTime     @default(now())
+  source               String       @default("web")
+  transferGroupId      String?      @map("transfer_group_id")
+  transferPeerAccountId String?     @map("transfer_peer_account_id")
+  requestId            String?      @map("request_id")
+  deletedAt            DateTime?    @map("deleted_at")
+  deletedBy            String?      @map("deleted_by")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  attachments          Attachment[]
+  account              Account?     @relation(fields: [accountId], references: [id])
+  category             Category?    @relation(fields: [categoryId], references: [id])
+  fxRate               FXRate?      @relation(fields: [fxRateId], references: [id])
+  workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, date(sort: Desc)])
   @@index([workspaceId, categoryId, date(sort: Desc)])
   @@index([workspaceId, accountId, date(sort: Desc)])
+  @@index([workspaceId, transferGroupId])
   @@map("transactions")
 }
 
