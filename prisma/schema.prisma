@@ -152,6 +152,7 @@ model Category {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  budgets        Budget[]
   transactions   Transaction[]
 
   @@unique([workspaceId, normalizedName, ownerUserId])
@@ -274,12 +275,14 @@ model Budget {
   amount      Decimal   @db.Decimal(15, 2)
   currency    String
   period      String    @default("monthly")
+  budgetType  String    @default("fixed") @map("budget_type")
   alertAt80   Boolean   @default(true) @map("alert_at_80")
   alertAt100  Boolean   @default(true) @map("alert_at_100")
   deletedAt   DateTime? @map("deleted_at")
   deletedBy   String?   @map("deleted_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+  category    Category? @relation(fields: [categoryId], references: [id])
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("budgets")
