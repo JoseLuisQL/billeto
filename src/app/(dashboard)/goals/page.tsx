@@ -13,6 +13,9 @@ import {
   TrendingUp,
   Trash2,
   X,
+  Lightbulb,
+  Clock,
+  Disc,
 } from "lucide-react";
 import {
   actualizarMeta,
@@ -396,15 +399,15 @@ export default function GoalsPage() {
   };
 
   return (
-    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
-      <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-zinc-900/40 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <main className="mx-auto max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold text-zinc-100">Mis Metas</h1>
-          <p className="mt-1 text-sm text-zinc-400">Sigue tu progreso y alcanza lo que te propones</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Mis Metas</h1>
+          <p className="mt-1.5 text-sm text-zinc-400">Sigue tu progreso y alcanza lo que te propones</p>
         </div>
         <button
           onClick={() => setIsTemplateModalOpen(true)}
-          className="inline-flex h-10 items-center gap-2 rounded-md bg-lime-400 px-4 text-sm font-semibold text-black transition hover:bg-lime-300"
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-lime-500/[0.15] px-4 text-sm font-semibold text-lime-400 transition hover:bg-lime-500/25"
         >
           <Plus className="h-4 w-4" />
           Nueva Meta
@@ -412,26 +415,56 @@ export default function GoalsPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Metas Activas" value={summary.metasActivas} icon={<Goal className="h-4 w-4" />} />
-        <KpiCard title="Progreso General" value={`${Math.round(summary.progresoGeneral)}%`} icon={<TrendingUp className="h-4 w-4" />} />
-        <KpiCard title="Metas Completadas" value={summary.metasCompletadas} icon={<CheckCircle2 className="h-4 w-4" />} />
-        <KpiCard title="Requiere Atención" value={summary.requiereAtencion} icon={<AlertCircle className="h-4 w-4" />} />
+        <KpiCard
+          title="Metas Activas"
+          value={summary.metasActivas}
+          subtitle={`${summary.metasActivas} ¡estás haciendo un gran progreso! mantén el impulso.`}
+          icon={<Disc className="h-4 w-4 text-blue-500" />}
+        />
+        <KpiCard
+          title="Progreso General"
+          value={`${Math.round(summary.progresoGeneral)}%`}
+          subtitle={
+            activeGoals.length > 0
+              ? `${formatCurrency(activeGoals.reduce((a, b) => a + b.currentAmount, 0), activeGoals[0].currency)} / ${formatCurrency(activeGoals.reduce((a, b) => a + b.targetAmount, 0), activeGoals[0].currency)}`
+              : "$0.00 / $0.00"
+          }
+          icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
+        />
+        <KpiCard
+          title="Metas Completadas"
+          value={summary.metasCompletadas}
+          subtitle="Completada"
+          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+        />
+        <KpiCard
+          title="Requiere Atención"
+          value={summary.requiereAtencion}
+          subtitle="Estás atrasado en . Considera aumentar las contribuciones."
+          icon={<Clock className="h-4 w-4 text-amber-500" />}
+        />
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-zinc-900/40 p-5">
-        <h2 className="mb-2 text-lg font-semibold text-zinc-100">Perspectivas</h2>
-        <div className="rounded-lg border border-white/10 bg-zinc-900/50 p-4">
-          <p className="text-base font-semibold text-zinc-100">{summary.perspectiva.title}</p>
-          <p className="mt-1 text-sm text-zinc-400">{summary.perspectiva.message}</p>
+      <section className="my-8">
+        <div className="mb-4 flex items-center gap-2 text-zinc-100">
+          <Lightbulb className="h-5 w-5" />
+          <h2 className="text-lg font-semibold">Perspectivas</h2>
+        </div>
+        <div className="flex items-start gap-4 rounded-xl border border-white/5 bg-[#121214] p-5">
+          <TrendingUp className="mt-0.5 h-5 w-5 text-zinc-400" />
+          <div>
+            <p className="text-sm font-semibold text-zinc-100">{summary.perspectiva.title}</p>
+            <p className="mt-1 text-sm text-zinc-400">{summary.perspectiva.message}</p>
+          </div>
         </div>
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold text-zinc-100">Metas Activas</h2>
+        <h2 className="text-lg font-semibold text-zinc-100">Metas Activas</h2>
         {loading ? (
-          <div className="rounded-xl border border-white/10 bg-zinc-900/40 p-8 text-center text-zinc-500">Cargando metas...</div>
+          <div className="rounded-xl border border-white/5 bg-[#121214] p-8 text-center text-zinc-500">Cargando metas...</div>
         ) : activeGoals.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-zinc-900/40 p-10 text-center">
+          <div className="rounded-xl border border-dashed border-white/10 bg-[#121214]/50 p-10 text-center">
             <Target className="mx-auto h-7 w-7 text-zinc-500" />
             <p className="mt-4 text-lg font-medium text-zinc-200">Aún no tienes metas</p>
             <p className="mt-1 text-sm text-zinc-400">Crea tu primera meta para comenzar a ahorrar</p>
@@ -444,7 +477,7 @@ export default function GoalsPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 justify-items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 justify-items-start gap-5 lg:grid-cols-2 xl:grid-cols-3">
             {activeGoals.map((goal) => {
               const deadlineMeta = getDeadlineMeta(goal.deadline);
               const statusLabel = STATUS_OPTIONS.find((item) => item.key === goal.status)?.label || "Activa";
@@ -452,12 +485,11 @@ export default function GoalsPage() {
               return (
                 <article
                   key={goal.id}
-                  className="h-[412px] w-[340px] rounded-xl border border-white/10 bg-zinc-900/70 p-4"
+                  className="w-full max-w-[350px] rounded-xl border border-white/5 bg-[#121214] p-5 transition-colors hover:border-white/10"
                 >
-                  <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="mb-4 flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-wide text-zinc-500">META</p>
-                      <h3 className="mt-1 truncate text-[1.9rem] font-semibold leading-tight text-zinc-100">{goal.name}</h3>
+                      <h3 className="truncate text-base font-semibold text-zinc-100">{goal.name}</h3>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -473,48 +505,67 @@ export default function GoalsPage() {
                     </DropdownMenu>
                   </div>
 
-                  <div className="mb-3 inline-flex rounded-full bg-lime-400 px-2.5 py-1 text-[11px] font-semibold text-black">
+                  <div className="mb-6 inline-flex rounded-full bg-lime-400 px-3 py-1 text-[0.7rem] font-bold uppercase tracking-wider text-black">
                     {statusLabel}
                   </div>
 
-                  <div className="mb-1 flex items-center justify-between text-[1.75rem] leading-none text-zinc-100">
+                  <div className="mb-2 flex items-center justify-between text-sm text-zinc-400">
                     <span>Progreso</span>
-                    <span className="font-semibold">{goal.progressPct.toFixed(1)}%</span>
+                    <span className="font-medium text-zinc-100">{goal.progressPct.toFixed(1)}%</span>
                   </div>
 
-                  <div className="h-2 overflow-hidden rounded-full bg-zinc-800/80">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
                     <div
                       className="h-full rounded-full bg-lime-400"
                       style={{ width: `${Math.min(goal.progressPct, 100)}%` }}
                     />
                   </div>
 
-                  <div className="mt-3 grid grid-cols-2 items-center gap-3 text-[1.65rem] font-semibold text-zinc-100 leading-tight">
-                    <span className="truncate">{formatCurrency(goal.currentAmount, goal.currency)}</span>
-                    <span className="truncate text-right">{formatCurrency(goal.targetAmount, goal.currency)}</span>
+                  <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
+                    <span className="font-medium">{formatCurrency(goal.currentAmount, goal.currency)}</span>
+                    <span className="font-medium text-zinc-100">{formatCurrency(goal.targetAmount, goal.currency)}</span>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="my-5 h-px w-full bg-white/5" />
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-[1rem] text-zinc-500">Falta</p>
-                      <p className="truncate text-[1.95rem] leading-tight font-semibold text-zinc-100">{formatCurrency(goal.remaining, goal.currency)}</p>
-                    </div>
-                    <div>
-                      <p className="inline-flex items-center gap-1 text-[1rem] text-zinc-500">
-                        <Calendar className="h-4 w-4" /> Fecha Meta
+                      <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-zinc-400">
+                        <Target className="h-3.5 w-3.5" /> Falta
                       </p>
-                      <p className="text-[1.95rem] leading-tight font-semibold text-zinc-100">{deadlineMeta.label}</p>
-                      {deadlineMeta.daysLeft != null ? <p className="text-[0.95rem] text-zinc-500">({deadlineMeta.daysLeft}d)</p> : null}
+                      <p className="truncate text-sm font-semibold text-zinc-100">{formatCurrency(goal.remaining, goal.currency)}</p>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-zinc-400">
+                        <Calendar className="h-3.5 w-3.5" /> Fecha Meta
+                      </p>
+                      <p className="truncate text-sm font-semibold text-zinc-100">
+                        {deadlineMeta.label}
+                        {deadlineMeta.daysLeft != null ? (
+                          <span className="ml-1 text-xs font-normal text-zinc-500">
+                            ({deadlineMeta.daysLeft}d)
+                          </span>
+                        ) : null}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <p className="text-[1rem] text-zinc-500">Mensual</p>
-                    <p className="truncate text-[1.95rem] leading-tight font-semibold text-zinc-100">{formatCurrency(goal.monthlyRequired, goal.currency)}</p>
+                  <div className="my-5 h-px w-full bg-white/5" />
+
+                  <div>
+                    <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-zinc-400">
+                      <TrendingUp className="h-3.5 w-3.5" /> Mensual
+                    </p>
+                    <p className="truncate text-sm font-semibold text-zinc-100">{formatCurrency(goal.monthlyRequired, goal.currency)}</p>
                   </div>
 
-                  <div className="mt-4 border-t border-white/10 pt-3">
-                    <p className="text-[1.05rem] text-lime-300">¡Estás haciendo un gran progreso! Mantén el impulso.</p>
+                  <div className="my-5 h-px w-full bg-white/5" />
+
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500" />
+                    <p className="text-xs leading-relaxed text-zinc-400">
+                      ¡Estás haciendo un gran progreso! Mantén el impulso.
+                    </p>
                   </div>
                 </article>
               );
@@ -536,11 +587,10 @@ export default function GoalsPage() {
                 <button
                   key={item.key}
                   onClick={() => setTemplateCategory(item.key)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${
-                    templateCategory === item.key
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${templateCategory === item.key
                       ? "bg-lime-400 text-black"
                       : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                  }`}
+                    }`}
                 >
                   {item.label}
                 </button>
@@ -802,19 +852,22 @@ export default function GoalsPage() {
 function KpiCard({
   title,
   value,
+  subtitle,
   icon,
 }: {
   title: string;
   value: string | number;
+  subtitle?: string;
   icon: ReactNode;
 }) {
   return (
-    <article className="rounded-xl border border-white/10 bg-zinc-900/40 p-4">
-      <div className="mb-3 flex items-center justify-between text-zinc-400">
-        <p className="text-sm">{title}</p>
+    <article className="flex flex-col rounded-xl border border-white/5 bg-[#121214] p-5">
+      <div className="mb-4 flex items-center justify-between text-zinc-100">
+        <p className="text-sm font-medium">{title}</p>
         <span>{icon}</span>
       </div>
-      <p className="text-2xl font-semibold text-zinc-100">{value}</p>
+      <p className="text-3xl font-bold tracking-tight text-zinc-100">{value}</p>
+      {subtitle && <div className="mt-2 text-xs text-zinc-500">{subtitle}</div>}
     </article>
   );
 }
