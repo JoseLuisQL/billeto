@@ -537,7 +537,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
             try {
               guardTool("transactions_list", args);
 
-              const where: Record<string, unknown> = { workspaceId };
+              const where: Record<string, unknown> = { workspaceId, deletedAt: null };
               if (args.type) where.type = args.type;
               if (args.search) where.description = { contains: args.search, mode: "insensitive" };
               if (args.category_id) where.categoryId = args.category_id;

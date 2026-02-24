@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 /**
  * Middleware de Next.js para proteger rutas privadas.
  * Redirige a /login si el usuario no tiene sesión activa.
- * 
- * NOTA: No importamos NextAuth auth() directamente porque
- * el middleware corre en Edge Runtime y auth() requiere Node.js
- * (crypto, bcrypt, prisma). En su lugar, verificamos la cookie
- * de sesión JWT de NextAuth.
+ *
+ * En Edge Runtime validamos el JWT con getToken (NextAuth)
+ * en lugar de confiar únicamente en la presencia de cookie.
  */
-export default function middleware(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
@@ -74,14 +73,14 @@ export default function middleware(req: NextRequest) {
         return NextResponse.next();
     }
 
-    // Verificar cookie de sesión de NextAuth (JWT strategy)
-    // NextAuth usa "authjs.session-token" como nombre de cookie
-    const sessionToken =
-        req.cookies.get("authjs.session-token")?.value ||
-        req.cookies.get("__Secure-authjs.session-token")?.value;
+    // Validar JWT de sesión (firma/exp) en middleware
+    const token = await getToken({
+        req,
+        secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+        secureCookie: process.env.NODE_ENV === "production",
+    });
 
-    // Si no hay token de sesión, redirigir a login
-    if (!sessionToken) {
+    if (!token?.sub) {
         const urlLogin = new URL("/login", req.url);
         urlLogin.searchParams.set("callbackUrl", pathname);
         return NextResponse.redirect(urlLogin);

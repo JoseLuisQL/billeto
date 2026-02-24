@@ -5,17 +5,19 @@ export const dynamic = "force-dynamic";
 
 /**
  * Cron endpoint para ejecutar transacciones recurrentes vencidas.
- * Protegido por CRON_SECRET. Puede ser llamado por Vercel Cron o externamente.
+ * Protegido por CRON_SECRET usando Authorization Bearer.
  *
- * GET /api/cron/recurring?secret=xxx
+ * Requerido: Authorization: Bearer <CRON_SECRET>
  */
 export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const secret = searchParams.get("secret");
+    const authHeader = req.headers.get("authorization") || "";
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+        ? authHeader.slice(7).trim()
+        : null;
     const cronSecret = process.env.CRON_SECRET;
 
     // Validar secreto (si está configurado)
-    if (cronSecret && secret !== cronSecret) {
+    if (cronSecret && bearerToken !== cronSecret) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
