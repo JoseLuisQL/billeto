@@ -51,6 +51,7 @@ import {
 import { listarCuentas } from "@/lib/actions/accounts";
 import { listarCategorias } from "@/lib/actions/categories";
 import { obtenerDistribucionCategorias } from "@/lib/actions/charts";
+import { asignarTransaccionAMeta, listarMetasAsignables } from "@/lib/actions/goals";
 import { useToast } from "@/components/ui/toast";
 import {
     DropdownMenu,
@@ -78,6 +79,8 @@ type TransactionItem = {
     description: string;
     type: "income" | "expense";
     amountOriginal: number;
+    currencyOriginal?: string;
+    baseCurrency?: string;
     accountId?: string | null;
     categoryId?: string | null;
     account?: { id?: string; name?: string; currency?: string };
@@ -93,6 +96,18 @@ type EditFormState = {
     type: "income" | "expense";
     categoryId: string;
     accountId: string;
+};
+
+type GoalAssignable = {
+    id: string;
+    name: string;
+    targetAmount: number;
+    currentAmount: number;
+    remaining: number;
+    progressPct: number;
+    currency: string;
+    deadline: string | null;
+    status: "active" | "paused" | "completed" | "archived";
 };
 
 // --- Main Component ---
@@ -126,6 +141,11 @@ export default function TransactionsPage() {
     const [assignGoalModalOpen, setAssignGoalModalOpen] = useState(false);
     const [selectedTransactionForGoal, setSelectedTransactionForGoal] = useState<TransactionItem | null>(null);
     const [assignGoalTab, setAssignGoalTab] = useState<"sugerencias" | "manual">("sugerencias");
+    const [goalsAssignable, setGoalsAssignable] = useState<GoalAssignable[]>([]);
+    const [goalToAssignId, setGoalToAssignId] = useState<string>("");
+    const [goalsLoading, setGoalsLoading] = useState(false);
+    const [goalAssigning, setGoalAssigning] = useState(false);
+    const [exchangeRateInput, setExchangeRateInput] = useState<string>("");
     const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null);
     const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -242,10 +262,83 @@ export default function TransactionsPage() {
         }
     };
 
+    const cargarMetasAsignables = async () => {
+        setGoalsLoading(true);
+        const result = await listarMetasAsignables();
+        if (result.error) {
+            toast({ title: "Error", description: result.error, variant: "error" });
+            setGoalsAssignable([]);
+            setGoalToAssignId("");
+            setGoalsLoading(false);
+            return;
+        }
+
+        const metas = (result.metas as GoalAssignable[]) || [];
+        setGoalsAssignable(metas);
+        setGoalToAssignId(metas[0]?.id || "");
+        setGoalsLoading(false);
+    };
+
     const abrirModalAsignarMeta = (tx: TransactionItem) => {
         setSelectedTransactionForGoal(tx);
         setAssignGoalTab("sugerencias");
+        setExchangeRateInput("");
         setAssignGoalModalOpen(true);
+        void cargarMetasAsignables();
+    };
+
+    const asignarMetaSeleccionada = async () => {
+        if (!selectedTransactionForGoal?.id) {
+            toast({ title: "Error", description: "No se encontró la transacción seleccionada.", variant: "error" });
+            return;
+        }
+
+        if (!goalToAssignId) {
+            toast({ title: "Error", description: "Selecciona una meta para continuar.", variant: "error" });
+            return;
+        }
+
+        const goal = goalsAssignable.find((item) => item.id === goalToAssignId);
+        if (!goal) {
+            toast({ title: "Error", description: "Meta seleccionada no disponible.", variant: "error" });
+            return;
+        }
+
+        const txCurrency = selectedTransactionForGoal.account?.currency || selectedTransactionForGoal.currencyOriginal || "PEN";
+        const requiresExchange = txCurrency !== goal.currency;
+
+        const hasExchangeInput = exchangeRateInput.trim().length > 0;
+        const parsedExchangeRate = hasExchangeInput ? Number.parseFloat(exchangeRateInput) : Number.NaN;
+
+        if (hasExchangeInput && (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate <= 0)) {
+            toast({
+                title: "Tipo de cambio inválido",
+                description: "Si ingresas tipo de cambio, debe ser mayor a 0.",
+                variant: "error"
+            });
+            return;
+        }
+
+        setGoalAssigning(true);
+        const result = await asignarTransaccionAMeta({
+            goalId: goalToAssignId,
+            transactionId: selectedTransactionForGoal.id,
+            exchangeRate: hasExchangeInput ? parsedExchangeRate : undefined,
+            strategy: requiresExchange && hasExchangeInput ? "divide" : "identity",
+        });
+        setGoalAssigning(false);
+
+        if (result.error) {
+            toast({ title: "Error", description: result.error, variant: "error" });
+            return;
+        }
+
+        toast({ title: "Meta actualizada", description: "La transacción se asignó correctamente.", variant: "success" });
+        setAssignGoalModalOpen(false);
+        setSelectedTransactionForGoal(null);
+        setGoalToAssignId("");
+        setExchangeRateInput("");
+        await cargarDatos();
     };
 
     const abrirPanelEditar = (tx: TransactionItem) => {
@@ -330,6 +423,10 @@ export default function TransactionsPage() {
         const d = new Date(fecha);
         return d.toLocaleDateString("es-PE", { month: "short", day: "numeric" }).replace('.', '');
     };
+
+    const selectedGoalForAssign = goalsAssignable.find((item) => item.id === goalToAssignId) || null;
+    const txCurrencyForAssign = selectedTransactionForGoal?.account?.currency || selectedTransactionForGoal?.currencyOriginal || "PEN";
+    const requiresExchangeRate = Boolean(selectedGoalForAssign && txCurrencyForAssign !== selectedGoalForAssign.currency);
 
     if (status === "loading") return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-zinc-500">Cargando...</div>;
     if (status === "unauthenticated") { router.push("/login"); return null; }
@@ -443,7 +540,7 @@ export default function TransactionsPage() {
                                             </TooltipTrigger>
                                             <TooltipContent side="left" className="bg-black text-white text-[12px] font-medium border border-zinc-800 rounded-[6px] px-3.5 py-2.5 shadow-2xl max-w-[280px] z-[100]">
                                                 <p className="mb-0.5 whitespace-nowrap">En esta moneda se unificarán tus reportes.</p>
-                                                <p className="whitespace-nowrap">No confundir con "Moneda de integraciones"</p>
+                                                <p className="whitespace-nowrap">No confundir con &quot;Moneda de integraciones&quot;</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </div>
@@ -502,7 +599,7 @@ export default function TransactionsPage() {
                                         })}
                                         {currencies.filter(c => c.name.toLowerCase().includes(searchCurrency.toLowerCase()) || c.code.toLowerCase().includes(searchCurrency.toLowerCase())).length === 0 && (
                                             <div className="py-6 px-3 text-center text-[13px] text-zinc-500">
-                                                No se encontraron resultados para "{searchCurrency}"
+                                                No se encontraron resultados para &quot;{searchCurrency}&quot;
                                             </div>
                                         )}
                                     </div>
@@ -1113,25 +1210,111 @@ export default function TransactionsPage() {
                                     </button>
                                 </div>
 
-                                <div className="bg-[#1f1f22] p-4 min-h-[120px]">
-                                    {assignGoalTab === "sugerencias" ? (
+                                <div className="bg-[#1f1f22] p-4 min-h-[120px] space-y-4">
+                                    {goalsLoading ? (
+                                        <div className="rounded-md border border-zinc-700/80 bg-[#232326] px-3 py-3 text-[13px] text-zinc-300">
+                                            Cargando metas activas...
+                                        </div>
+                                    ) : goalsAssignable.length === 0 ? (
                                         <div className="rounded-md border border-zinc-700/80 bg-[#232326] px-3 py-3 text-[13px] text-zinc-300">
                                             No se encontraron metas activas. Crea una meta primero para obtener sugerencias de asignación.
                                         </div>
                                     ) : (
-                                        <div className="space-y-3">
-                                            <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
-                                                Selecciona una meta (próximamente)
-                                            </div>
+                                        <>
+                                            {assignGoalTab === "sugerencias" ? (
+                                                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                                                    {goalsAssignable
+                                                        .slice()
+                                                        .sort((a, b) => {
+                                                            const byRemaining = a.remaining - b.remaining;
+                                                            if (byRemaining !== 0) return byRemaining;
+                                                            return b.progressPct - a.progressPct;
+                                                        })
+                                                        .slice(0, 5)
+                                                        .map((goal) => {
+                                                            const isSelected = goalToAssignId === goal.id;
+                                                            return (
+                                                                <button
+                                                                    key={goal.id}
+                                                                    type="button"
+                                                                    onClick={() => setGoalToAssignId(goal.id)}
+                                                                    className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${isSelected ? "border-[#D3FF0A]/70 bg-[#D3FF0A]/10" : "border-zinc-700 bg-[#232326] hover:bg-zinc-800"}`}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <div>
+                                                                            <p className="text-[13px] font-medium text-zinc-100">{goal.name}</p>
+                                                                            <p className="text-[12px] text-zinc-400">Progreso {goal.progressPct.toFixed(0)}%</p>
+                                                                        </div>
+                                                                        <p className="text-[12px] text-zinc-400">{formatearMoneda(goal.remaining, goal.currency)}</p>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">Seleccionar Meta</label>
+                                                        <select
+                                                            value={goalToAssignId}
+                                                            onChange={(e) => setGoalToAssignId(e.target.value)}
+                                                            className="w-full bg-[#232326] border border-zinc-700 rounded-md py-2 px-3 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#D3FF0A]/50"
+                                                        >
+                                                            {goalsAssignable.map((goal) => (
+                                                                <option key={goal.id} value={goal.id}>{goal.name} ({goal.currency})</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {requiresExchangeRate && selectedGoalForAssign && (
+                                                        <div>
+                                                            <label className="block text-[13px] font-medium text-zinc-300 mb-1.5">
+                                                                Tipo de Cambio ({txCurrencyForAssign}/{selectedGoalForAssign.currency})
+                                                            </label>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.00000001"
+                                                                value={exchangeRateInput}
+                                                                onChange={(e) => setExchangeRateInput(e.target.value)}
+                                                                placeholder={`e.g., 1500 (${txCurrencyForAssign} per 1 ${selectedGoalForAssign.currency})`}
+                                                                className="w-full bg-[#232326] border border-zinc-700 rounded-md py-2 px-3 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#D3FF0A]/50"
+                                                            />
+                                                            <p className="mt-1 text-[12px] text-zinc-500">
+                                                                Opcional: ingresa cuántos {txCurrencyForAssign} equivalen a 1 {selectedGoalForAssign.currency}. Si lo dejas vacío, se asignará el monto total sin conversión.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
                                                     % asignado: 100%
                                                 </div>
                                                 <div className="rounded-md border border-zinc-700 bg-[#232326] px-3 py-2.5 text-[13px] text-zinc-400">
-                                                    Monto asignado: {formatearMoneda(Math.abs(selectedTransactionForGoal.amountOriginal), selectedTransactionForGoal.account?.currency || "PEN")}
+                                                    Monto asignado: {formatearMoneda(Math.abs(selectedTransactionForGoal.amountOriginal), txCurrencyForAssign)}
                                                 </div>
                                             </div>
-                                        </div>
+
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => setAssignGoalModalOpen(false)}
+                                                    className="h-9 bg-[#3a3a3f] text-zinc-100 hover:bg-[#47474d]"
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    onClick={asignarMetaSeleccionada}
+                                                    disabled={goalAssigning || !goalToAssignId}
+                                                    className="h-9 bg-[#D3FF0A] text-black hover:bg-[#c5f000] font-semibold text-sm"
+                                                >
+                                                    {goalAssigning ? "Asignando..." : "Asignar"}
+                                                </Button>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -1258,9 +1441,4 @@ export default function TransactionsPage() {
             )}
         </div>
     );
-}
-
-// --- Icons Helper (if needed) ---
-function Icon(props: any) {
-    return <div {...props} />;
 }

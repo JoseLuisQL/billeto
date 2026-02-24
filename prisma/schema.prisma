@@ -86,6 +86,7 @@ model Workspace {
   budgets               Budget[]
   categories            Category[]
   goals                 Goal[]
+  goalContributions     GoalContribution[]
   integrations          Integration[]
   memberships           Membership[]
   recurringTransactions RecurringTransaction[]
@@ -160,32 +161,33 @@ model Category {
 
 /// Transacción financiera (gasto, ingreso o transferencia)
 model Transaction {
-  id                   String       @id @default(cuid())
-  workspaceId          String       @map("workspace_id")
-  accountId            String?      @map("account_id")
-  categoryId           String?      @map("category_id")
-  amountOriginal       Decimal      @map("amount_original") @db.Decimal(15, 2)
-  currencyOriginal     String       @map("currency_original")
-  amountBase           Decimal      @map("amount_base") @db.Decimal(15, 2)
-  baseCurrency         String       @map("base_currency")
-  fxRateId             String?      @map("fx_rate_id")
-  description          String
-  type                 String       @default("expense")
-  status               String       @default("posted")
-  date                 DateTime     @default(now())
-  source               String       @default("web")
-  transferGroupId      String?      @map("transfer_group_id")
-  transferPeerAccountId String?     @map("transfer_peer_account_id")
-  requestId            String?      @map("request_id")
-  deletedAt            DateTime?    @map("deleted_at")
-  deletedBy            String?      @map("deleted_by")
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @updatedAt @map("updated_at")
-  attachments          Attachment[]
-  account              Account?     @relation(fields: [accountId], references: [id])
-  category             Category?    @relation(fields: [categoryId], references: [id])
-  fxRate               FXRate?      @relation(fields: [fxRateId], references: [id])
-  workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                    String             @id @default(cuid())
+  workspaceId           String             @map("workspace_id")
+  accountId             String?            @map("account_id")
+  categoryId            String?            @map("category_id")
+  amountOriginal        Decimal            @map("amount_original") @db.Decimal(15, 2)
+  currencyOriginal      String             @map("currency_original")
+  amountBase            Decimal            @map("amount_base") @db.Decimal(15, 2)
+  baseCurrency          String             @map("base_currency")
+  fxRateId              String?            @map("fx_rate_id")
+  description           String
+  type                  String             @default("expense")
+  status                String             @default("posted")
+  date                  DateTime           @default(now())
+  source                String             @default("web")
+  transferGroupId       String?            @map("transfer_group_id")
+  transferPeerAccountId String?            @map("transfer_peer_account_id")
+  requestId             String?            @map("request_id")
+  deletedAt             DateTime?          @map("deleted_at")
+  deletedBy             String?            @map("deleted_by")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  attachments           Attachment[]
+  goalContributions     GoalContribution[]
+  account               Account?           @relation(fields: [accountId], references: [id])
+  category              Category?          @relation(fields: [categoryId], references: [id])
+  fxRate                FXRate?            @relation(fields: [fxRateId], references: [id])
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, date(sort: Desc)])
   @@index([workspaceId, categoryId, date(sort: Desc)])
@@ -285,23 +287,77 @@ model Budget {
 
 /// Meta financiera (ahorro, viaje, deuda)
 model Goal {
-  id            String    @id @default(cuid())
-  workspaceId   String    @map("workspace_id")
-  name          String
-  targetAmount  Decimal   @map("target_amount") @db.Decimal(15, 2)
-  currentAmount Decimal   @default(0) @map("current_amount") @db.Decimal(15, 2)
-  currency      String
-  category      String?
-  emoji         String?
-  deadline      DateTime?
-  status        String    @default("active")
-  deletedAt     DateTime? @map("deleted_at")
-  deletedBy     String?   @map("deleted_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  workspaceId         String             @map("workspace_id")
+  templateId          String?            @map("template_id")
+  name                String
+  targetAmount        Decimal            @map("target_amount") @db.Decimal(15, 2)
+  currentAmount       Decimal            @default(0) @map("current_amount") @db.Decimal(15, 2)
+  currency            String
+  category            String?
+  emoji               String?
+  notes               String?
+  deadline            DateTime?
+  status              String             @default("active")
+  deletedAt           DateTime?          @map("deleted_at")
+  deletedBy           String?            @map("deleted_by")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  contributions       GoalContribution[]
+  template            GoalTemplate?      @relation(fields: [templateId], references: [id])
+  workspace           Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId, status])
+  @@index([workspaceId, deadline])
+  @@index([workspaceId, templateId])
   @@map("goals")
+}
+
+/// Plantillas predefinidas para metas financieras
+model GoalTemplate {
+  id               String   @id @default(cuid())
+  name             String
+  normalizedName   String   @map("normalized_name")
+  description      String
+  category         String
+  emoji            String?
+  targetAmount     Decimal  @map("target_amount") @db.Decimal(15, 2)
+  currency         String
+  suggestedMonths  Int      @map("suggested_months")
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  goals            Goal[]
+
+  @@unique([normalizedName])
+  @@index([category, sortOrder])
+  @@map("goal_templates")
+}
+
+/// Historial de contribuciones a metas
+model GoalContribution {
+  id            String       @id @default(cuid())
+  workspaceId   String       @map("workspace_id")
+  goalId        String       @map("goal_id")
+  transactionId String?      @map("transaction_id")
+  amount        Decimal      @db.Decimal(15, 2)
+  currency      String
+  amountBase    Decimal      @map("amount_base") @db.Decimal(15, 2)
+  sourceAmount  Decimal?     @map("source_amount") @db.Decimal(15, 2)
+  sourceCurrency String?
+  exchangeRate  Decimal?     @map("exchange_rate") @db.Decimal(18, 8)
+  source        String       @default("transaction")
+  note          String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  goal          Goal         @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, goalId, createdAt(sort: Desc)])
+  @@index([workspaceId, transactionId])
+  @@unique([goalId, transactionId])
+  @@map("goal_contributions")
 }
 
 /// Integración externa (WhatsApp, Email, Webhook)

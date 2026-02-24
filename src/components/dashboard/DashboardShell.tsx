@@ -13,6 +13,7 @@ const routeMeta: Record<string, { title: string; breadcrumb: string[] }> = {
   "/dashboard": { title: "Dashboard", breadcrumb: ["Dashboard"] },
   "/transactions": { title: "Transacciones", breadcrumb: ["Dashboard", "Transacciones"] },
   "/accounts": { title: "Cuentas", breadcrumb: ["Dashboard", "Cuentas"] },
+  "/goals": { title: "Metas", breadcrumb: ["Dashboard", "Metas"] },
   "/categories": { title: "Categorías", breadcrumb: ["Dashboard", "Categorías"] },
   "/transactions/rules": { title: "Reglas", breadcrumb: ["Dashboard", "Reglas"] },
   "/transactions/recurring-transactions": { title: "Recurrentes", breadcrumb: ["Dashboard", "Recurrentes"] },

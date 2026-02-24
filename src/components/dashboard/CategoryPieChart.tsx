@@ -1,23 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Label, Pie, PieChart, Sector } from "recharts";
+import { Pie, PieChart, Sector } from "recharts";
 import { PieSectorDataItem } from "recharts/types/polar/Pie";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartStyle,
-} from "@/components/ui/chart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { obtenerDistribucionCategorias } from "@/lib/actions/charts";
 import { cn } from "@/lib/utils";
 
@@ -26,20 +14,23 @@ type PieItem = { name: string; value: number; fill: string };
 export function CategoryPieChart({ from, to }: { from?: string; to?: string }) {
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense");
   const [datos, setDatos] = useState<PieItem[]>([]);
-  const [cargando, setCargando] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    setCargando(true);
-    obtenerDistribucionCategorias({ from, to, type: activeTab }).then((res) => {
-      // Ensure we have colors for chart config
+    let cancelled = false;
+
+    void obtenerDistribucionCategorias({ from, to, type: activeTab }).then((res) => {
+      if (cancelled) return;
       const datosConColor = res.datos.map((d, i) => ({
         ...d,
         fill: d.fill || `hsl(var(--chart-${(i % 5) + 1}))`,
       }));
       setDatos(datosConColor);
-      setCargando(false);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [from, to, activeTab]);
 
   const total = datos.reduce((acc, curr) => acc + curr.value, 0);
@@ -68,7 +59,7 @@ export function CategoryPieChart({ from, to }: { from?: string; to?: string }) {
     ),
   } satisfies ChartConfig;
 
-  const onPieEnter = (_: any, index: number) => {
+  const onPieEnter = (_item: PieItem, index: number) => {
     setActiveIndex(index);
   };
 
@@ -110,11 +101,7 @@ export function CategoryPieChart({ from, to }: { from?: string; to?: string }) {
       </CardHeader>
 
       <CardContent className="flex-1 pb-4">
-        {cargando ? (
-          <div className="flex h-[300px] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-700 border-t-zinc-400" />
-          </div>
-        ) : datos.length === 0 ? (
+        {datos.length === 0 ? (
           <div className="flex h-[300px] flex-col items-center justify-center text-sm text-zinc-500">
             <p>No hay datos para este período</p>
           </div>
@@ -145,12 +132,12 @@ export function CategoryPieChart({ from, to }: { from?: string; to?: string }) {
                       startAngle,
                       endAngle,
                       fill,
-                    }: any) => (
+                    }: PieSectorDataItem) => (
                       <Sector
                         cx={cx}
                         cy={cy}
                         innerRadius={innerRadius}
-                        outerRadius={outerRadius + 10}
+                        outerRadius={Number(outerRadius) + 10}
                         startAngle={startAngle}
                         endAngle={endAngle}
                         fill={fill}

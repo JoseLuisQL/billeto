@@ -83,7 +83,7 @@ const navItems: NavItem[] = [
   },
   { id: "accounts", label: "Cuentas", icon: Wallet, href: "/accounts" },
   { id: "budgets", label: "Presupuestos", icon: PiggyBank, disabled: true },
-  { id: "goals", label: "Metas", icon: Goal, disabled: true },
+  { id: "goals", label: "Metas", icon: Goal, href: "/goals" },
   { id: "groups", label: "Grupos", icon: Users, disabled: true, badge: "Pronto" },
   {
     id: "tools",
