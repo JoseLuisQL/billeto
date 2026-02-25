@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type InferSchema } from "xmcp";
 import { prisma } from "@/lib/prisma";
-import { aplicarReglas } from "@/lib/actions/rules";
+import { aplicarReglasCompleto, applyDescriptionModification } from "@/lib/actions/rules";
 import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
 
 export const schema = {
@@ -75,10 +75,21 @@ export default async function transactionsCreate(
         if (!categoria) return "❌ Categoría no válida para este usuario.";
     }
 
-    // Auto-categorización si no se especificó categoría
-    if (!categoryId && args.description) {
-        const autoId = await aplicarReglas(args.description, userId);
-        if (autoId) categoryId = autoId;
+    // ── Full Rule Engine ──
+    let description = args.description;
+    const ruleResult = await aplicarReglasCompleto(
+        { description, amount: args.amount, type: args.type, accountId },
+        userId
+    );
+
+    // Apply category from rules (if no manual category)
+    if (!categoryId && ruleResult.categoryId) {
+        categoryId = ruleResult.categoryId;
+    }
+
+    // Apply description modification from rules
+    if (ruleResult.descriptionModification) {
+        description = await applyDescriptionModification(description, ruleResult.descriptionModification);
     }
 
     const date = args.date ? new Date(args.date) : new Date();
@@ -94,7 +105,7 @@ export default async function transactionsCreate(
                 currencyOriginal: cuenta.currency,
                 amountBase: args.amount,
                 baseCurrency: "PEN",
-                description: args.description.trim(),
+                description: description.trim(),
                 type: args.type,
                 source: args.source,
                 requestId: args.request_id,
@@ -111,6 +122,49 @@ export default async function transactionsCreate(
             throw new Error("Cuenta no encontrada o sin permisos");
         }
 
+        // Goal contributions from rules
+        if (ruleResult.goalContributions.length > 0) {
+            for (const gc of ruleResult.goalContributions) {
+                let contributionAmount: number;
+                if (gc.amountType === "percentage") {
+                    contributionAmount = args.amount * (gc.amountValue / 100);
+                } else {
+                    contributionAmount = gc.amountValue;
+                }
+                contributionAmount = Number(contributionAmount.toFixed(2));
+
+                if (contributionAmount > 0) {
+                    const goal = await db.goal.findFirst({
+                        where: { id: gc.goalId, workspaceId },
+                        select: { id: true, currency: true, currentAmount: true, targetAmount: true, status: true },
+                    });
+
+                    if (goal) {
+                        await db.goalContribution.create({
+                            data: {
+                                workspaceId,
+                                goalId: gc.goalId,
+                                transactionId: transaccion.id,
+                                amount: contributionAmount,
+                                currency: goal.currency,
+                                amountBase: contributionAmount,
+                                source: "rule",
+                                note: `Regla automática: ${description}`,
+                            },
+                        });
+
+                        const nextCurrent = Number(goal.currentAmount) + contributionAmount;
+                        const nextStatus = nextCurrent >= Number(goal.targetAmount) ? "completed" : goal.status;
+
+                        await db.goal.update({
+                            where: { id: gc.goalId },
+                            data: { currentAmount: nextCurrent, status: nextStatus },
+                        });
+                    }
+                }
+            }
+        }
+
         await db.auditLog.create({
             data: {
                 workspaceId,
@@ -118,7 +172,10 @@ export default async function transactionsCreate(
                 action: "create",
                 entity: "transaction",
                 entityId: transaccion.id,
-                after: { description: args.description, amount: args.amount, type: args.type, source: "mcp" },
+                after: {
+                    description, amount: args.amount, type: args.type, source: "mcp",
+                    rulesApplied: ruleResult.matchedRuleIds,
+                },
             },
         });
 
@@ -126,5 +183,8 @@ export default async function transactionsCreate(
     });
 
     const emoji = args.type === "income" ? "💰" : "💸";
-    return `${emoji} Transacción creada: ${args.description} — S/ ${args.amount.toFixed(2)} (${args.type === "income" ? "ingreso" : "gasto"}) en cuenta "${cuenta.name}". ID: ${tx.id}`;
+    const rulesInfo = ruleResult.matchedRuleIds.length > 0
+        ? ` (${ruleResult.matchedRuleIds.length} regla(s) aplicada(s))`
+        : "";
+    return `${emoji} Transacción creada: ${description} — S/ ${args.amount.toFixed(2)} (${args.type === "income" ? "ingreso" : "gasto"}) en cuenta "${cuenta.name}"${rulesInfo}. ID: ${tx.id}`;
 }

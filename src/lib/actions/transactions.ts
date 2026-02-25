@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import type { PrismaClient } from "@prisma/client";
-import { aplicarReglas } from "@/lib/actions/rules";
+import { aplicarReglasCompleto, applyDescriptionModification } from "@/lib/actions/rules";
+import type { RuleResult } from "@/lib/actions/rules";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
@@ -99,13 +100,7 @@ export async function crearTransaccion(formData: FormData) {
 
         const accountId = (formData.get("accountId") as string) || null;
         let categoryId = (formData.get("categoryId") as string) || null;
-        const description = formData.get("description") as string;
-
-        // Auto-categorizacion: si no se especifico categoria, aplicar reglas
-        if (!categoryId && description) {
-            const catAutoId = await aplicarReglas(description, userId);
-            if (catAutoId) categoryId = catAutoId;
-        }
+        let description = formData.get("description") as string;
         const type = (formData.get("type") as string) || "expense";
         const amount = parseFloat(formData.get("amount") as string);
         const dateStr = formData.get("date") as string;
@@ -115,10 +110,31 @@ export async function crearTransaccion(formData: FormData) {
         if (!description || description.trim().length === 0) return { error: "La descripción es obligatoria." };
         if (isNaN(amount) || amount <= 0) return { error: "El monto debe ser mayor a 0." };
 
+        // ── Full Rule Engine ──
+        let ruleResult: RuleResult | null = null;
+        if (description) {
+            ruleResult = await aplicarReglasCompleto(
+                { description, amount, type, accountId: accountId || undefined },
+                userId
+            );
+
+            // Apply category from rules (if no category manually selected)
+            if (!categoryId && ruleResult.categoryId) {
+                categoryId = ruleResult.categoryId;
+            }
+
+            // Apply description modification from rules
+            if (ruleResult.descriptionModification) {
+                description = await applyDescriptionModification(description, ruleResult.descriptionModification);
+            }
+        }
+
         let cuenta: { id: string; currency: string } | null = null;
-        if (accountId) {
+        // Use rule-assigned account if no manual account
+        const finalAccountId = accountId || ruleResult?.accountId || null;
+        if (finalAccountId) {
             cuenta = await prisma.account.findFirst({
-                where: { id: accountId, workspaceId: workspace.id, deletedAt: null },
+                where: { id: finalAccountId, workspaceId: workspace.id, deletedAt: null },
                 select: { id: true, currency: true },
             });
             if (!cuenta) return { error: "Cuenta no encontrada." };
@@ -153,7 +169,7 @@ export async function crearTransaccion(formData: FormData) {
             const transaccion = await tx.transaction.create({
                 data: {
                     workspaceId: workspace.id,
-                    accountId: accountId ?? undefined,
+                    accountId: finalAccountId ?? undefined,
                     categoryId,
                     amountOriginal: amount,
                     currencyOriginal: cuenta?.currency || workspace.baseCurrency,
@@ -167,9 +183,9 @@ export async function crearTransaccion(formData: FormData) {
             });
 
             // 2. Actualizar balance de la cuenta (solo si tiene cuenta asignada)
-            if (accountId && cuenta) {
+            if (finalAccountId && cuenta) {
                 await tx.account.update({
-                    where: { id: accountId },
+                    where: { id: finalAccountId },
                     data: {
                         currentBalance: {
                             increment: cambioBalance,
@@ -178,7 +194,70 @@ export async function crearTransaccion(formData: FormData) {
                 });
             }
 
-            // 3. Auditoria
+            // 3. Goal contributions from rules
+            if (ruleResult && ruleResult.goalContributions.length > 0) {
+                for (const gc of ruleResult.goalContributions) {
+                    // Calculate contribution amount
+                    let contributionAmount: number;
+                    if (gc.amountType === "percentage") {
+                        contributionAmount = amount * (gc.amountValue / 100);
+                    } else {
+                        contributionAmount = gc.amountValue;
+                    }
+                    contributionAmount = Number(contributionAmount.toFixed(2));
+
+                    if (contributionAmount > 0) {
+                        // Check for duplicate contribution
+                        const existing = await tx.goalContribution.findFirst({
+                            where: {
+                                workspaceId: workspace.id,
+                                goalId: gc.goalId,
+                                transactionId: transaccion.id,
+                            },
+                            select: { id: true },
+                        });
+
+                        if (!existing) {
+                            // Get goal for currency info
+                            const goal = await tx.goal.findFirst({
+                                where: { id: gc.goalId, workspaceId: workspace.id },
+                                select: { id: true, currency: true, currentAmount: true, targetAmount: true, status: true },
+                            });
+
+                            if (goal) {
+                                await tx.goalContribution.create({
+                                    data: {
+                                        workspaceId: workspace.id,
+                                        goalId: gc.goalId,
+                                        transactionId: transaccion.id,
+                                        amount: contributionAmount,
+                                        currency: goal.currency,
+                                        amountBase: contributionAmount,
+                                        source: "rule",
+                                        note: `Regla automática: ${description}`,
+                                    },
+                                });
+
+                                // Update goal's currentAmount
+                                const nextCurrent = Number(goal.currentAmount) + contributionAmount;
+                                const nextStatus = nextCurrent >= Number(goal.targetAmount)
+                                    ? "completed"
+                                    : goal.status;
+
+                                await tx.goal.update({
+                                    where: { id: gc.goalId },
+                                    data: {
+                                        currentAmount: nextCurrent,
+                                        status: nextStatus,
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Auditoria
             await tx.auditLog.create({
                 data: {
                     workspaceId: workspace.id,
@@ -186,7 +265,11 @@ export async function crearTransaccion(formData: FormData) {
                     action: "create",
                     entity: "transaction",
                     entityId: transaccion.id,
-                    after: { description, amount, type, accountId, categoryId },
+                    after: {
+                        description, amount, type,
+                        accountId: finalAccountId, categoryId,
+                        rulesApplied: ruleResult?.matchedRuleIds || [],
+                    },
                 },
             });
 
@@ -195,6 +278,7 @@ export async function crearTransaccion(formData: FormData) {
 
         revalidatePath("/transactions");
         revalidatePath("/dashboard");
+        revalidatePath("/goals");
         return { success: true, transaccion: resultado };
     } catch (error) {
         if (isRateLimitError(error)) {

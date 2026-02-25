@@ -3,7 +3,7 @@ import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage }
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { aplicarReglas } from "@/lib/actions/rules";
+import { aplicarReglasCompleto } from "@/lib/actions/rules";
 import { checkApiRateLimit } from "@/lib/security/api-rate-limit";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import {
@@ -418,11 +418,15 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   finalCategoryId = resolvedCategory.id;
                 }
 
-                if (!finalCategoryId) {
-                  const byRule = await aplicarReglas(args.description, userId);
-                  if (byRule && visibleCategories.some((c) => c.id === byRule)) {
-                    finalCategoryId = byRule;
-                  }
+                // ── Full Rule Engine ── run BEFORE category chain so result is available
+                const ruleRes = await aplicarReglasCompleto(
+                  { description: args.description, amount: Number(args.amount), type: args.type, accountId: finalAccountId || undefined },
+                  userId
+                );
+
+                // Apply category from rules
+                if (!finalCategoryId && ruleRes.categoryId && visibleCategories.some((c) => c.id === ruleRes.categoryId)) {
+                  finalCategoryId = ruleRes.categoryId;
                 }
 
                 if (!finalCategoryId) {
@@ -461,7 +465,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     }
                   }
 
-                  return db.transaction.create({
+                  const transaccion = await db.transaction.create({
                     data: {
                       amountOriginal: amountNum,
                       amountBase: amountNum,
@@ -477,6 +481,51 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     },
                     include: { category: true, account: true },
                   });
+
+                  // Goal contributions from rules
+                  if (ruleRes.goalContributions.length > 0) {
+                    for (const gc of ruleRes.goalContributions) {
+                      let contributionAmount: number;
+                      if (gc.amountType === "percentage") {
+                        contributionAmount = amountNum * (gc.amountValue / 100);
+                      } else {
+                        contributionAmount = gc.amountValue;
+                      }
+                      contributionAmount = Number(contributionAmount.toFixed(2));
+
+                      if (contributionAmount > 0) {
+                        const goal = await db.goal.findFirst({
+                          where: { id: gc.goalId, workspaceId },
+                          select: { id: true, currency: true, currentAmount: true, targetAmount: true, status: true },
+                        });
+
+                        if (goal) {
+                          await db.goalContribution.create({
+                            data: {
+                              workspaceId,
+                              goalId: gc.goalId,
+                              transactionId: transaccion.id,
+                              amount: contributionAmount,
+                              currency: goal.currency,
+                              amountBase: contributionAmount,
+                              source: "rule",
+                              note: `Regla automática: ${args.description}`,
+                            },
+                          });
+
+                          const nextCurrent = Number(goal.currentAmount) + contributionAmount;
+                          const nextStatus = nextCurrent >= Number(goal.targetAmount) ? "completed" : goal.status;
+
+                          await db.goal.update({
+                            where: { id: gc.goalId },
+                            data: { currentAmount: nextCurrent, status: nextStatus },
+                          });
+                        }
+                      }
+                    }
+                  }
+
+                  return transaccion;
                 });
 
                 const selectedAccount = finalAccountId ? accounts.find((a) => a.id === finalAccountId) : null;

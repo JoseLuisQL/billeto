@@ -14,6 +14,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^7.4.0",
+    "@xyflow/react": "^12.10.1",
     "ai": "^6.0.86",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
