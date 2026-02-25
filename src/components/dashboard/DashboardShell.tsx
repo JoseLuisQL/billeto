@@ -18,6 +18,7 @@ const routeMeta: Record<string, { title: string; breadcrumb: string[] }> = {
   "/transactions/rules": { title: "Reglas", breadcrumb: ["Dashboard", "Reglas"] },
   "/transactions/recurring-transactions": { title: "Recurrentes", breadcrumb: ["Dashboard", "Recurrentes"] },
   "/assistant": { title: "Asistente IA", breadcrumb: ["Dashboard", "Asistente IA"] },
+  "/profile": { title: "Perfil", breadcrumb: ["Dashboard", "Perfil"] },
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {

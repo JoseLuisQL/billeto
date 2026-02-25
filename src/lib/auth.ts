@@ -58,7 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    image: user.image,
+                    image: user.avatar || user.image,
                 };
             },
         }),
@@ -73,9 +73,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
          * Callback JWT: enriquecer el token con datos adicionales
          * Se ejecuta cada vez que se crea o actualiza un JWT
          */
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger }) {
             if (user) {
                 token.id = user.id;
+                token.image = user.image;
+            }
+            // Re-fetch avatar from DB when session.update() is called
+            if (trigger === "update" && token.id) {
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: token.id as string },
+                    select: { avatar: true, image: true, name: true },
+                });
+                if (dbUser) {
+                    token.image = dbUser.avatar || dbUser.image;
+                    token.name = dbUser.name;
+                }
             }
             return token;
         },
@@ -86,6 +98,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async session({ session, token }) {
             if (token?.id) {
                 session.user.id = token.id as string;
+            }
+            if (token?.image) {
+                session.user.image = token.image as string;
+            }
+            if (token?.name) {
+                session.user.name = token.name as string;
             }
             return session;
         },

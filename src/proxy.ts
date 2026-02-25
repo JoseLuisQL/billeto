@@ -61,6 +61,7 @@ export default async function middleware(req: NextRequest) {
         "/terms",
         "/security",
         "/api/auth",
+        "/api/cron",
     ];
 
     // Verificar si la ruta actual es pública

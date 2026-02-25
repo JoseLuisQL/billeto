@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -135,6 +135,26 @@ export function DashboardSidebar({
   const pathname = usePathname();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => getInitialExpandedState(pathname));
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image ?? null);
+  const [displayName, setDisplayName] = useState(user.name ?? "");
+
+  // Fetch latest avatar & name from DB
+  const refreshUserData = () => {
+    fetch("/api/user/avatar")
+      .then((res) => res.json())
+      .then((data: { avatar: string | null; name: string | null }) => {
+        if (data.avatar) setAvatarUrl(data.avatar);
+        if (data.name) setDisplayName(data.name);
+      })
+      .catch(() => { });
+  };
+
+  useEffect(() => {
+    refreshUserData();
+    // Listen for profile updates from the profile page
+    window.addEventListener("profile-updated", refreshUserData);
+    return () => window.removeEventListener("profile-updated", refreshUserData);
+  }, [user.id]);
 
   const inviteLink = typeof window !== "undefined" ? `${window.location.origin}/invitar?ref=${user.id}` : "";
 
@@ -333,13 +353,17 @@ export function DashboardSidebar({
                 className={`flex w-full items-center rounded-xl p-2 text-sm transition-all hover:bg-white/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-lime-500/50 ${collapsed ? "justify-center" : "gap-3 text-left"}`}
                 title={collapsed ? "Perfil" : undefined}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-lime-500/20 bg-lime-500/10 text-sm font-bold text-lime-400 shadow-[inset_0_0_10px_rgba(163,230,53,0.1)]">
-                  {user.name?.charAt(0)?.toUpperCase() ?? "U"}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-lime-500/20 bg-lime-500/10 text-sm font-bold text-lime-400 shadow-[inset_0_0_10px_rgba(163,230,53,0.1)] overflow-hidden">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    displayName?.charAt(0)?.toUpperCase() ?? "U"
+                  )}
                 </div>
                 {!collapsed && (
                   <>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-100">{user.name}</p>
+                      <p className="truncate text-sm font-medium text-zinc-100">{displayName}</p>
                       <p className="truncate text-xs text-zinc-500">{user.email}</p>
                     </div>
                     <MoreVertical className="h-4 w-4 shrink-0 text-zinc-500" />
@@ -355,20 +379,26 @@ export function DashboardSidebar({
             >
               <DropdownMenuLabel className="font-normal p-2 pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500 text-sm font-bold text-white">
-                    {user.name?.charAt(0)?.toUpperCase() ?? "U"}
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500 text-sm font-bold text-white overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      displayName?.charAt(0)?.toUpperCase() ?? "U"
+                    )}
                   </div>
                   <div className="flex flex-col space-y-0.5">
-                    <p className="text-sm font-medium text-zinc-100 leading-none">{user.name}</p>
+                    <p className="text-sm font-medium text-zinc-100 leading-none">{displayName}</p>
                     <p className="text-xs text-zinc-400 leading-none truncate">{user.email}</p>
                   </div>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-white/5 mx-1" />
               <DropdownMenuGroup className="p-1">
-                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 focus:text-zinc-100 py-2 rounded-lg text-zinc-300">
-                  <User className="h-[18px] w-[18px]" />
-                  <span>Perfil</span>
+                <DropdownMenuItem asChild className="cursor-pointer gap-3 focus:bg-white/5 focus:text-zinc-100 py-2 rounded-lg text-zinc-300">
+                  <Link href="/profile">
+                    <User className="h-[18px] w-[18px]" />
+                    <span>Perfil</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 focus:text-zinc-100 py-2 rounded-lg text-zinc-300">
                   <CreditCard className="h-[18px] w-[18px]" />
