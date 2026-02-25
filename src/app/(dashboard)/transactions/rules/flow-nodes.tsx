@@ -1,7 +1,10 @@
 "use client";
 
 import { memo, useState } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import {
+    Handle, Position, type NodeProps,
+    BaseEdge, getSmoothStepPath, EdgeLabelRenderer, useReactFlow, type EdgeProps,
+} from "@xyflow/react";
 import { Zap, Tag, AlertTriangle, MoreVertical, Pencil, Copy, Trash2, Settings, Target } from "lucide-react";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -297,4 +300,83 @@ export const nodeTypes = {
     trigger: TriggerNode,
     condition: ConditionNode,
     action: ActionNode,
+};
+
+// ─── Custom Edge with Selection + Delete ───────────
+
+export function DeletableEdge({
+    id, sourceX, sourceY, targetX, targetY,
+    sourcePosition, targetPosition, selected, markerEnd, style,
+}: EdgeProps) {
+    const { setEdges } = useReactFlow();
+    const [edgePath, labelX, labelY] = getSmoothStepPath({
+        sourceX, sourceY, targetX, targetY,
+        sourcePosition, targetPosition,
+    });
+
+    const baseStroke = style?.stroke as string || "#84cc16";
+    const strokeWidth = selected ? 3 : Number(style?.strokeWidth ?? 2);
+
+    return (
+        <>
+            {/* Glow layer behind the edge when selected */}
+            {selected && (
+                <path
+                    d={edgePath}
+                    fill="none"
+                    stroke={baseStroke}
+                    strokeWidth={8}
+                    strokeOpacity={0.25}
+                    className="pointer-events-none"
+                    style={{ filter: "blur(4px)" }}
+                />
+            )}
+
+            {/* Main edge */}
+            <BaseEdge
+                id={id}
+                path={edgePath}
+                markerEnd={markerEnd}
+                style={{
+                    ...style,
+                    stroke: selected ? "#facc15" : baseStroke,
+                    strokeWidth,
+                    strokeDasharray: selected ? "8 4" : style?.strokeDasharray,
+                    transition: "stroke 0.15s, stroke-width 0.15s",
+                }}
+            />
+
+            {/* Delete button — only visible when selected */}
+            {selected && (
+                <EdgeLabelRenderer>
+                    <div
+                        className="nodrag nopan"
+                        style={{
+                            position: "absolute",
+                            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+                            pointerEvents: "all",
+                        }}
+                    >
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setEdges((eds) => eds.filter((e) => e.id !== id));
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded-full border border-red-500/50 bg-red-950/90 text-red-400 shadow-lg shadow-red-950/50 backdrop-blur-sm transition hover:bg-red-900 hover:text-red-300 hover:scale-110"
+                            title="Eliminar conexión"
+                        >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                </EdgeLabelRenderer>
+            )}
+        </>
+    );
+}
+
+export const edgeTypes = {
+    deletable: DeletableEdge,
 };

@@ -24,7 +24,7 @@ import { useToast } from "@/components/ui/toast";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { nodeTypes } from "./flow-nodes";
+import { nodeTypes, edgeTypes } from "./flow-nodes";
 
 // ─── Types ───────────────────────────────────────────
 
@@ -334,6 +334,7 @@ function FlowEditor({ rule, categories, accounts, goals, onClose, onSaved }: {
 
         const edgeStyle = { stroke: "#84cc16", strokeWidth: 2 };
         const edgeMarker = { type: MarkerType.ArrowClosed, color: "#84cc16" };
+        const edgeType = "deletable";
 
         // ── Main chain: Trigger → conditions[0] → actions[0] ──
         let y = 0;
@@ -344,14 +345,14 @@ function FlowEditor({ rule, categories, accounts, goals, onClose, onSaved }: {
         if (c0) {
             const cid = `cond-${c0.id}`;
             nodes.push({ id: cid, type: "condition", position: { x: X, y }, data: { conditionId: c0.id, field: c0.field, operator: c0.operator, value: c0.value, caseSensitive: c0.caseSensitive, onEdit: (id: string) => setConfigPanel({ type: "condition", id }), onDuplicate: duplicateCondition, onDelete: removeCondition }, draggable: true });
-            edges.push({ id: "e-trigger-c0", source: "trigger", target: cid, type: "smoothstep", animated: true, style: edgeStyle, markerEnd: edgeMarker });
+            edges.push({ id: "e-trigger-c0", source: "trigger", target: cid, type: "deletable", animated: true, style: edgeStyle, markerEnd: edgeMarker });
             y += CHAIN_GAP;
 
             const a0 = actions[0];
             if (a0) {
                 const aid = `act-${a0.id}`;
                 nodes.push({ id: aid, type: "action", position: { x: X, y }, data: buildActionData(a0), draggable: true });
-                edges.push({ id: "e-c0-a0", source: cid, target: aid, type: "smoothstep", animated: true, style: edgeStyle, markerEnd: edgeMarker });
+                edges.push({ id: "e-c0-a0", source: cid, target: aid, type: "deletable", animated: true, style: edgeStyle, markerEnd: edgeMarker });
                 y += CHAIN_GAP;
             }
         }
@@ -368,7 +369,7 @@ function FlowEditor({ rule, categories, accounts, goals, onClose, onSaved }: {
             if (pairedAction) {
                 const aid = `act-${pairedAction.id}`;
                 nodes.push({ id: aid, type: "action", position: { x: PAIR_X_OFFSET, y: extraY }, data: buildActionData(pairedAction), draggable: true });
-                edges.push({ id: `e-pair-${i}`, source: cid, target: aid, type: "smoothstep", animated: true, style: edgeStyle, markerEnd: edgeMarker });
+                edges.push({ id: `e-pair-${i}`, source: cid, target: aid, type: "deletable", animated: true, style: edgeStyle, markerEnd: edgeMarker });
             }
             extraY += CHAIN_GAP + PAIR_GAP_Y;
         }
@@ -396,7 +397,7 @@ function FlowEditor({ rule, categories, accounts, goals, onClose, onSaved }: {
     }, [conditions, actions, buildGraph, setNodes, setEdges]);
 
     const onConnect: OnConnect = useCallback((params: Connection) => {
-        setEdges(eds => addEdge({ ...params, type: "smoothstep", animated: true, style: { stroke: "#84cc16", strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: "#84cc16" } }, eds));
+        setEdges(eds => addEdge({ ...params, type: "deletable", animated: true, style: { stroke: "#84cc16", strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: "#84cc16" } }, eds));
     }, [setEdges]);
 
     // Auto-layout: reset positions to vertical stack
@@ -493,11 +494,12 @@ function FlowEditor({ rule, categories, accounts, goals, onClose, onSaved }: {
                         onEdgesChange={onEdgesChange}
                         onConnect={onConnect}
                         nodeTypes={nodeTypes}
+                        edgeTypes={edgeTypes}
                         fitView
                         fitViewOptions={{ padding: 0.4 }}
                         className="bg-[#0e0e10]"
                         proOptions={{ hideAttribution: true }}
-                        defaultEdgeOptions={{ type: "smoothstep", animated: true, style: { stroke: "#84cc16", strokeWidth: 2 } }}
+                        defaultEdgeOptions={{ type: "deletable", animated: true, style: { stroke: "#84cc16", strokeWidth: 2 } }}
                         minZoom={0.3}
                         maxZoom={2}
                     >
