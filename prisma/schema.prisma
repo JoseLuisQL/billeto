@@ -244,26 +244,49 @@ model Rule {
 
 /// Transacción recurrente (suscripciones, pagos periódicos)
 model RecurringTransaction {
-  id          String    @id @default(cuid())
-  workspaceId String    @map("workspace_id")
-  name        String
-  amount      Decimal   @db.Decimal(15, 2)
-  currency    String
-  accountId   String?   @map("account_id")
-  categoryId  String?   @map("category_id")
-  type        String    @default("expense")
-  frequency   String
-  status      String    @default("active")
-  nextRunAt   DateTime  @map("next_run_at")
-  lastRunAt   DateTime? @map("last_run_at")
-  deletedAt   DateTime? @map("deleted_at")
-  deletedBy   String?   @map("deleted_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  workspaceId    String    @map("workspace_id")
+  name           String
+  description    String?
+  amount         Decimal   @db.Decimal(15, 2)
+  currency       String
+  accountId      String?   @map("account_id")
+  categoryId     String?   @map("category_id")
+  type           String    @default("expense")
+  frequency      String
+  dayOfMonth     Int?      @map("day_of_month")
+  status         String    @default("active")
+  startDate      DateTime? @map("start_date")
+  nextRunAt      DateTime  @map("next_run_at")
+  lastRunAt      DateTime? @map("last_run_at")
+  endCondition   String    @default("never") @map("end_condition")
+  endDate        DateTime? @map("end_date")
+  maxOccurrences Int?      @map("max_occurrences")
+  executionCount Int       @default(0) @map("execution_count")
+  deletedAt      DateTime? @map("deleted_at")
+  deletedBy      String?   @map("deleted_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, status, nextRunAt])
   @@map("recurring_transactions")
+}
+
+/// Suscripciones populares predefinidas para selección rápida
+model PopularSubscription {
+  id        String  @id @default(cuid())
+  name      String
+  icon      String?
+  color     String?
+  price     Decimal @db.Decimal(15, 2)
+  currency  String  @default("USD")
+  category  String
+  frequency String  @default("monthly")
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  @@map("popular_subscriptions")
 }
 
 /// Presupuesto por categoría con alertas

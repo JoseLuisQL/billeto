@@ -41,12 +41,36 @@ export async function GET(req: Request) {
             const accountId = rec.accountId;
             if (!accountId) continue;
 
+            // Check end conditions
+            if (rec.endCondition === "after_count" && rec.maxOccurrences && rec.executionCount >= rec.maxOccurrences) {
+                await prisma.recurringTransaction.updateMany({
+                    where: { id: rec.id },
+                    data: { status: "paused" },
+                });
+                continue;
+            }
+            if (rec.endCondition === "on_date" && rec.endDate && ahora >= rec.endDate) {
+                await prisma.recurringTransaction.updateMany({
+                    where: { id: rec.id },
+                    data: { status: "paused" },
+                });
+                continue;
+            }
+
             try {
                 const cambioBalance =
                     rec.type === "income" ? Number(rec.amount) : -Number(rec.amount);
 
                 // Calcular siguiente fecha
-                const nextRun = calcularSiguiente(ahora, rec.frequency);
+                let nextRun: Date;
+                if (rec.dayOfMonth && rec.frequency === "monthly") {
+                    nextRun = new Date(ahora);
+                    nextRun.setMonth(nextRun.getMonth() + 1);
+                    const maxDay = new Date(nextRun.getFullYear(), nextRun.getMonth() + 1, 0).getDate();
+                    nextRun.setDate(Math.min(rec.dayOfMonth, maxDay));
+                } else {
+                    nextRun = calcularSiguiente(ahora, rec.frequency);
+                }
 
                 await prisma.$transaction(async (tx) => {
                     await tx.transaction.create({
@@ -76,7 +100,11 @@ export async function GET(req: Request) {
 
                     const recurringUpdated = await tx.recurringTransaction.updateMany({
                         where: { id: rec.id, workspaceId: rec.workspaceId, deletedAt: null, status: "active" },
-                        data: { lastRunAt: ahora, nextRunAt: nextRun },
+                        data: {
+                            lastRunAt: ahora,
+                            nextRunAt: nextRun,
+                            executionCount: { increment: 1 },
+                        },
                     });
 
                     if (recurringUpdated.count === 0) {

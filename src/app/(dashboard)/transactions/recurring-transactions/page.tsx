@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Plus, Trash2, Pencil, Play, Pause } from "lucide-react";
 import {
     listarRecurrentes,
     crearRecurrente,
@@ -15,19 +14,49 @@ import { listarCuentas } from "@/lib/actions/accounts";
 import { listarCategorias } from "@/lib/actions/categories";
 import { useToast } from "@/components/ui/toast";
 
+// Components
+import { RecurringCategoryChart } from "@/components/recurring/RecurringCategoryChart";
+import { RecurringMiniCalendar } from "@/components/recurring/RecurringMiniCalendar";
+import { PopularSubscriptionsGrid } from "@/components/recurring/PopularSubscriptionsGrid";
+import { RecurringTable } from "@/components/recurring/RecurringTable";
+import { RecurringWizardModal } from "@/components/recurring/RecurringWizardModal";
+import { Play } from "lucide-react";
+
 type RecurrenteItem = {
     id: string;
     name: string;
+    description?: string | null;
     amount: number;
-    type: "income" | "expense";
+    currency: string;
+    type: string;
     frequency: string;
-    status: "active" | "paused";
+    dayOfMonth?: number | null;
+    status: string;
     accountId?: string | null;
     categoryId?: string | null;
+    categoryName?: string | null;
+    categoryIcon?: string | null;
     nextRunAt: string;
+    lastRunAt?: string | null;
+    executionCount: number;
+    endCondition?: string;
+    endDate?: string | null;
+    maxOccurrences?: number | null;
+    startDate?: string | null;
 };
 
 type OptionItem = { id: string; name: string; icon?: string };
+
+type PopularSub = {
+    id: string;
+    name: string;
+    icon: string | null;
+    color: string | null;
+    price: number;
+    currency: string;
+    category: string;
+    frequency: string;
+};
 
 export default function RecurringPage() {
     const { status } = useSession();
@@ -39,23 +68,16 @@ export default function RecurringPage() {
     const [categorias, setCategorias] = useState<OptionItem[]>([]);
     const [cargando, setCargando] = useState(true);
     const [modalAbierto, setModalAbierto] = useState(false);
-    const [editandoId, setEditandoId] = useState<string | null>(null);
     const [ejecutando, setEjecutando] = useState(false);
-
-    // Form state
-    const [nombre, setNombre] = useState("");
-    const [monto, setMonto] = useState("");
-    const [tipo, setTipo] = useState("expense");
-    const [frecuencia, setFrecuencia] = useState("monthly");
-    const [cuentaId, setCuentaId] = useState("");
-    const [categoriaId, setCategoriaId] = useState("");
-    const [guardando, setGuardando] = useState(false);
+    const [prefill, setPrefill] = useState<{ name: string; amount: number; currency: string } | null>(null);
+    const [editingItem, setEditingItem] = useState<RecurrenteItem | null>(null);
+    const [chartKey, setChartKey] = useState(0);
 
     useEffect(() => {
         if (status === "unauthenticated") router.push("/login");
     }, [status, router]);
 
-    async function cargarDatos() {
+    const cargarDatos = useCallback(async () => {
         setCargando(true);
         const [recRes, ctsRes, catsRes] = await Promise.all([
             listarRecurrentes(),
@@ -66,99 +88,148 @@ export default function RecurringPage() {
         setCuentas((ctsRes.cuentas as OptionItem[]) || []);
         setCategorias((catsRes.categorias as OptionItem[]) || []);
         setCargando(false);
-    }
+    }, []);
 
     useEffect(() => {
         if (status === "authenticated") {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             void cargarDatos();
         }
-    }, [status]);
+    }, [status, cargarDatos]);
 
-    function abrirModal(rec?: RecurrenteItem) {
-        if (rec) {
-            setEditandoId(rec.id);
-            setNombre(rec.name);
-            setMonto(rec.amount.toString());
-            setTipo(rec.type);
-            setFrecuencia(rec.frequency);
-            setCuentaId(rec.accountId || "");
-            setCategoriaId(rec.categoryId || "");
-        } else {
-            setEditandoId(null);
-            setNombre("");
-            setMonto("");
-            setTipo("expense");
-            setFrecuencia("monthly");
-            setCuentaId("");
-            setCategoriaId("");
-        }
+    // Handle popular subscription click
+    function handlePopularSelect(sub: PopularSub) {
+        setEditingItem(null);
+        setPrefill({
+            name: sub.name,
+            amount: sub.price,
+            currency: sub.currency,
+        });
         setModalAbierto(true);
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        setGuardando(true);
+    // Handle new button click
+    function handleNueva() {
+        setEditingItem(null);
+        setPrefill(null);
+        setModalAbierto(true);
+    }
 
-        const result = editandoId
-            ? await actualizarRecurrente(editandoId, {
-                name: nombre,
-                amount: parseFloat(monto),
-                type: tipo,
-                frequency: frecuencia,
-                accountId: cuentaId || undefined,
-                categoryId: categoriaId || undefined,
-            })
-            : await crearRecurrente({
-                name: nombre,
-                amount: parseFloat(monto),
-                type: tipo,
-                frequency: frecuencia,
-                accountId: cuentaId || undefined,
-                categoryId: categoriaId || undefined,
+    // Handle wizard submit (create or update)
+    async function handleWizardSubmit(data: {
+        accountId: string;
+        type: string;
+        description: string;
+        amount: string;
+        currency: string;
+        categoryId: string;
+        frequency: string;
+        dayOfMonth: string;
+        startDate: string;
+        endCondition: string;
+        endDate: string;
+        maxOccurrences: string;
+    }) {
+        if (editingItem) {
+            // --- UPDATE MODE ---
+            const result = await actualizarRecurrente(editingItem.id, {
+                name: data.description,
+                description: data.description,
+                amount: parseFloat(data.amount),
+                currency: data.currency,
+                type: data.type,
+                frequency: data.frequency,
+                dayOfMonth: data.dayOfMonth ? parseInt(data.dayOfMonth) : undefined,
+                accountId: data.accountId || undefined,
+                categoryId: data.categoryId || undefined,
+                endCondition: data.endCondition,
+                endDate: data.endDate || undefined,
+                maxOccurrences: data.maxOccurrences ? parseInt(data.maxOccurrences) : undefined,
             });
 
-        setGuardando(false);
+            if (!result.ok) {
+                toast({ title: "Error al actualizar", description: result.error, variant: "error" });
+                return;
+            }
 
-        if (!result.ok) {
-            toast({ title: "No se pudo guardar", description: result.error, variant: "error" });
-            return;
+            setModalAbierto(false);
+            setEditingItem(null);
+            toast({
+                title: "Recurrente actualizada",
+                description: "Los cambios se guardaron correctamente.",
+                variant: "success",
+            });
+        } else {
+            // --- CREATE MODE ---
+            const result = await crearRecurrente({
+                name: data.description,
+                description: data.description,
+                amount: parseFloat(data.amount),
+                currency: data.currency,
+                type: data.type,
+                frequency: data.frequency,
+                dayOfMonth: data.dayOfMonth ? parseInt(data.dayOfMonth) : undefined,
+                accountId: data.accountId || undefined,
+                categoryId: data.categoryId || undefined,
+                startDate: data.startDate || undefined,
+                endCondition: data.endCondition,
+                endDate: data.endDate || undefined,
+                maxOccurrences: data.maxOccurrences ? parseInt(data.maxOccurrences) : undefined,
+            });
+
+            if (!result.ok) {
+                toast({ title: "Error al crear", description: result.error, variant: "error" });
+                return;
+            }
+
+            setModalAbierto(false);
+            setPrefill(null);
+            toast({
+                title: "Recurrente creada",
+                description: "La transacción recurrente se creó correctamente.",
+                variant: "success",
+            });
         }
-
-        setModalAbierto(false);
-        toast({
-            title: editandoId ? "Recurrente actualizada" : "Recurrente creada",
-            description: "La configuración se guardó correctamente.",
-            variant: "success",
-        });
-        cargarDatos();
+        await cargarDatos();
+        setChartKey((k) => k + 1);
     }
 
-    async function handleEliminar(id: string) {
-        if (!confirm("¿Eliminar esta transacción recurrente?")) return;
-        const result = await eliminarRecurrente(id);
-        if (!result.ok) {
-            toast({ title: "No se pudo eliminar", description: result.error, variant: "error" });
-            return;
-        }
-        toast({ title: "Recurrente eliminada", description: "La regla recurrente fue eliminada.", variant: "success" });
-        cargarDatos();
-    }
-
+    // Toggle pause/resume
     async function handleTogglePause(rec: RecurrenteItem) {
         const nuevoStatus = rec.status === "active" ? "paused" : "active";
         const result = await actualizarRecurrente(rec.id, { status: nuevoStatus });
         if (!result.ok) {
-            toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
+            toast({ title: "Error", description: result.error, variant: "error" });
             return;
         }
         toast({
             title: nuevoStatus === "active" ? "Recurrente activada" : "Recurrente pausada",
             variant: "success",
         });
-        cargarDatos();
+        await cargarDatos();
+        setChartKey((k) => k + 1);
     }
 
+    // Delete
+    async function handleEliminar(id: string) {
+        if (!confirm("¿Eliminar esta transacción recurrente?")) return;
+        const result = await eliminarRecurrente(id);
+        if (!result.ok) {
+            toast({ title: "Error", description: result.error, variant: "error" });
+            return;
+        }
+        toast({ title: "Eliminada", description: "La transacción recurrente fue eliminada.", variant: "success" });
+        await cargarDatos();
+        setChartKey((k) => k + 1);
+    }
+
+    // Edit — pass full item data to modal
+    function handleEdit(rec: RecurrenteItem) {
+        setPrefill(null);
+        setEditingItem(rec);
+        setModalAbierto(true);
+    }
+
+    // Execute pending
     async function handleEjecutar() {
         setEjecutando(true);
         const result = await ejecutarRecurrentes();
@@ -170,307 +241,86 @@ export default function RecurringPage() {
                 variant: "success",
             });
         } else {
-            toast({ title: "Error al ejecutar recurrentes", description: result.error, variant: "error" });
+            toast({ title: "Error", description: result.error, variant: "error" });
         }
-        cargarDatos();
+        await cargarDatos();
+        setChartKey((k) => k + 1);
     }
 
-    const frecuenciaLabels: Record<string, string> = {
-        daily: "Diaria",
-        weekly: "Semanal",
-        biweekly: "Quincenal",
-        monthly: "Mensual",
-        yearly: "Anual",
-    };
-
-    function formatFecha(iso: string) {
-        return new Date(iso).toLocaleDateString("es-PE", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
-    }
-
+    // Compute pending count
     const pendientes = recurrentes.filter(
         (r) => r.status === "active" && new Date(r.nextRunAt) <= new Date()
     ).length;
 
+    // Compute recurring dates for calendar
+    const recurringDates = recurrentes
+        .filter((r) => r.status === "active")
+        .map((r) => ({
+            day: new Date(r.nextRunAt).getDate(),
+            name: r.name,
+            type: r.type,
+        }));
+
     if (status === "loading") return null;
 
     return (
-        <main className="p-6 lg:p-8">
-            <div className="max-w-5xl mx-auto">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-8">
-                        <div>
-                            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                                <RefreshCw className="w-6 h-6 text-blue-400" />
-                                Transacciones recurrentes
-                            </h1>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Suscripciones y pagos que se repiten periódicamente.
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {pendientes > 0 && (
-                                <button
-                                    onClick={handleEjecutar}
-                                    disabled={ejecutando}
-                                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-500 transition-colors disabled:opacity-50 text-sm"
-                                >
-                                    <Play className="w-4 h-4" />
-                                    {ejecutando ? "Ejecutando..." : `Ejecutar ${pendientes} pendientes`}
-                                </button>
-                            )}
-                            <button
-                                onClick={() => abrirModal()}
-                                className="flex items-center gap-2 bg-[#D3FF0A] text-black px-4 py-2 rounded-lg font-medium hover:bg-[#bde609] transition-colors"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Nueva recurrente
-                            </button>
-                        </div>
-                    </div>
+        <main className="p-4 lg:p-6">
+            <div className="max-w-[1200px] mx-auto space-y-4">
 
-                    {/* Table */}
-                    <div className="rounded-xl border border-white/10 bg-zinc-900/50 overflow-hidden">
-                        {cargando ? (
-                            <div className="p-8 text-center text-muted-foreground animate-pulse">
-                                Cargando recurrentes...
-                            </div>
-                        ) : recurrentes.length === 0 ? (
-                            <div className="p-12 text-center">
-                                <RefreshCw className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                                <p className="text-muted-foreground">No hay transacciones recurrentes</p>
-                                <p className="text-xs text-zinc-600 mt-1">
-                                    Agregá suscripciones y pagos periódicos acá
-                                </p>
-                            </div>
-                        ) : (
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-xs text-muted-foreground uppercase tracking-wider">
-                                        <th className="px-4 py-3 text-left">Nombre</th>
-                                        <th className="px-4 py-3 text-right">Monto</th>
-                                        <th className="px-4 py-3 text-center">Frecuencia</th>
-                                        <th className="px-4 py-3 text-center">Próxima ejecución</th>
-                                        <th className="px-4 py-3 text-center">Estado</th>
-                                        <th className="px-4 py-3 text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {recurrentes.map((rec) => {
-                                        const vencida =
-                                            rec.status === "active" && new Date(rec.nextRunAt) <= new Date();
-                                        return (
-                                            <tr
-                                                key={rec.id}
-                                                className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    <span className="text-white font-medium">{rec.name}</span>
-                                                    <span className="text-xs text-zinc-500 ml-2">
-                                                        {rec.type === "income" ? "ingreso" : "gasto"}
-                                                    </span>
-                                                </td>
-                                                <td
-                                                    className={`px-4 py-3 text-right font-medium ${rec.type === "income" ? "text-emerald-400" : "text-rose-400"
-                                                        }`}
-                                                >
-                                                    {rec.type === "income" ? "+" : "-"}S/ {rec.amount.toFixed(2)}
-                                                </td>
-                                                <td className="px-4 py-3 text-center text-sm text-zinc-400">
-                                                    {frecuenciaLabels[rec.frequency] || rec.frequency}
-                                                </td>
-                                                <td className="px-4 py-3 text-center text-sm">
-                                                    <span
-                                                        className={
-                                                            vencida
-                                                                ? "text-amber-400 font-medium"
-                                                                : "text-zinc-400"
-                                                        }
-                                                    >
-                                                        {formatFecha(rec.nextRunAt)}
-                                                        {vencida && " ⚠️"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span
-                                                        className={`text-xs px-2 py-1 rounded-full ${rec.status === "active"
-                                                            ? "bg-emerald-500/20 text-emerald-400"
-                                                            : "bg-zinc-700/50 text-zinc-500"
-                                                            }`}
-                                                    >
-                                                        {rec.status === "active" ? "Activa" : "Pausada"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <button
-                                                            onClick={() => handleTogglePause(rec)}
-                                                            className="p-1.5 rounded-md hover:bg-white/10 text-zinc-500 hover:text-white transition-colors"
-                                                            title={rec.status === "active" ? "Pausar" : "Reanudar"}
-                                                        >
-                                                            {rec.status === "active" ? (
-                                                                <Pause className="w-3.5 h-3.5" />
-                                                            ) : (
-                                                                <Play className="w-3.5 h-3.5" />
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => abrirModal(rec)}
-                                                            className="p-1.5 rounded-md hover:bg-white/10 text-zinc-500 hover:text-white transition-colors"
-                                                        >
-                                                            <Pencil className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleEliminar(rec.id)}
-                                                            className="p-1.5 rounded-md hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
+                {/* Row 1: Chart + Calendar */}
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+                    <RecurringCategoryChart key={chartKey} />
+                    <RecurringMiniCalendar recurringDates={recurringDates} />
                 </div>
 
-                {/* Modal */}
-                {modalAbierto && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <form
-                        onSubmit={handleSubmit}
-                        className="bg-zinc-900 border border-white/10 rounded-xl p-6 w-full max-w-lg space-y-5"
-                    >
-                        <h2 className="text-lg font-semibold text-white">
-                            {editandoId ? "Editar recurrente" : "Nueva recurrente"}
-                        </h2>
+                {/* Row 2: Popular subscriptions */}
+                <PopularSubscriptionsGrid onSelect={handlePopularSelect} />
 
-                        {/* Nombre */}
-                        <div>
-                            <label className="block text-xs uppercase text-muted-foreground mb-1">Nombre</label>
-                            <input
-                                value={nombre}
-                                onChange={(e) => setNombre(e.target.value)}
-                                className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                placeholder="Ej: Spotify Premium"
-                                required
-                            />
+                {/* Execute pending banner */}
+                {pendientes > 0 && (
+                    <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-sm text-amber-300">
+                                Tienes {pendientes} {pendientes === 1 ? "transacción pendiente" : "transacciones pendientes"} de ejecutar
+                            </span>
                         </div>
-
-                        {/* Tipo + Monto */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs uppercase text-muted-foreground mb-1">Tipo</label>
-                                <select
-                                    value={tipo}
-                                    onChange={(e) => setTipo(e.target.value)}
-                                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                >
-                                    <option value="expense">Gasto</option>
-                                    <option value="income">Ingreso</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase text-muted-foreground mb-1">Monto</label>
-                                <input
-                                    type="number"
-                                    value={monto}
-                                    onChange={(e) => setMonto(e.target.value)}
-                                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    min="0"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Frecuencia */}
-                        <div>
-                            <label className="block text-xs uppercase text-muted-foreground mb-1">
-                                Frecuencia
-                            </label>
-                            <select
-                                value={frecuencia}
-                                onChange={(e) => setFrecuencia(e.target.value)}
-                                className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                            >
-                                <option value="daily">Diaria</option>
-                                <option value="weekly">Semanal</option>
-                                <option value="biweekly">Quincenal</option>
-                                <option value="monthly">Mensual</option>
-                                <option value="yearly">Anual</option>
-                            </select>
-                        </div>
-
-                        {/* Cuenta y Categoría */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs uppercase text-muted-foreground mb-1">
-                                    Cuenta
-                                </label>
-                                <select
-                                    value={cuentaId}
-                                    onChange={(e) => setCuentaId(e.target.value)}
-                                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                >
-                                    <option value="">Sin asignar</option>
-                                    {cuentas.map((ct) => (
-                                        <option key={ct.id} value={ct.id}>
-                                            {ct.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase text-muted-foreground mb-1">
-                                    Categoría
-                                </label>
-                                <select
-                                    value={categoriaId}
-                                    onChange={(e) => setCategoriaId(e.target.value)}
-                                    className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                                >
-                                    <option value="">Sin asignar</option>
-                                    {categorias.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>
-                                            {cat.icon || "📋"} {cat.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Buttons */}
-                        <div className="flex gap-3 justify-end pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setModalAbierto(false)}
-                                className="px-4 py-2 rounded-lg border border-white/10 text-sm text-muted-foreground hover:bg-white/5"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={guardando}
-                                className="px-4 py-2 rounded-lg bg-[#D3FF0A] text-black font-medium text-sm hover:bg-[#bde609] disabled:opacity-50"
-                            >
-                                {guardando
-                                    ? "Guardando..."
-                                    : editandoId
-                                        ? "Actualizar"
-                                        : "Crear recurrente"}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                        <button
+                            onClick={handleEjecutar}
+                            disabled={ejecutando}
+                            className="flex items-center gap-1.5 bg-amber-500 text-black px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                        >
+                            <Play className="w-3 h-3" />
+                            {ejecutando ? "Ejecutando..." : "Ejecutar pendientes"}
+                        </button>
+                    </div>
                 )}
+
+                {/* Row 3: Table */}
+                {cargando ? (
+                    <div className="h-48 animate-pulse rounded-xl bg-zinc-900/40 border border-white/5" />
+                ) : (
+                    <RecurringTable
+                        recurrentes={recurrentes}
+                        onEdit={handleEdit}
+                        onTogglePause={handleTogglePause}
+                        onDelete={handleEliminar}
+                        onNew={handleNueva}
+                    />
+                )}
+            </div>
+
+            {/* Wizard Modal */}
+            <RecurringWizardModal
+                isOpen={modalAbierto}
+                onClose={() => { setModalAbierto(false); setPrefill(null); setEditingItem(null); }}
+                onSubmit={handleWizardSubmit}
+                cuentas={cuentas}
+                categorias={categorias}
+                baseCurrency="PEN"
+                prefill={prefill}
+                editData={editingItem}
+            />
         </main>
     );
 }
