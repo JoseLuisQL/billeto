@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { iniciarSesion } from "@/lib/actions/auth";
+import { getOnboardingStatus } from "@/lib/actions/onboarding";
 import { useToast } from "@/components/ui/toast";
 
 import { BilletoLogo } from "@/components/ui/logo";
@@ -38,8 +39,13 @@ export default function LoginPage() {
             toast({ title: "No se pudo iniciar sesión", description: resultado.error, variant: "error" });
             setCargando(false);
         } else {
-            // Redirigir al dashboard después del login exitoso
-            router.push("/dashboard");
+            // Check if user needs onboarding
+            const onboarding = await getOnboardingStatus();
+            if (onboarding.needsOnboarding) {
+                router.push("/onboarding");
+            } else {
+                router.push("/dashboard");
+            }
             router.refresh();
         }
     };

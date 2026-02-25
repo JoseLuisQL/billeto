@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { DashboardSidebar } from "@/components/dashboard/Sidebar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { getOnboardingStatus } from "@/lib/actions/onboarding";
 
 const SIDEBAR_STATE_KEY = "billeto.sidebar.hidden";
 
@@ -24,11 +25,21 @@ const routeMeta: Record<string, { title: string; breadcrumb: string[] }> = {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_STATE_KEY) === "1";
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Guard: redirect to onboarding if not completed
+  useEffect(() => {
+    getOnboardingStatus().then((res) => {
+      if (res.needsOnboarding) {
+        router.replace("/onboarding");
+      }
+    });
+  }, [router]);
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STATE_KEY, sidebarHidden ? "1" : "0");

@@ -38,8 +38,8 @@ export default function RegisterPage() {
             toast({ title: "No se pudo registrar", description: resultado.error, variant: "error" });
             setCargando(false);
         } else {
-            // Redirigir al dashboard después del registro exitoso
-            router.push("/dashboard");
+            // Redirigir al onboarding después del registro exitoso
+            router.push("/onboarding");
             router.refresh();
         }
     };

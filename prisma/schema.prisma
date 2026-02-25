@@ -78,6 +78,7 @@ model Workspace {
   country               String                 @default("PE")
   timezone              String                 @default("America/Lima")
   onboardingCompleted   Boolean                @default(false) @map("onboarding_completed")
+  onboardingAnswers     Json?                  @map("onboarding_answers")
   deletedAt             DateTime?              @map("deleted_at")
   deletedBy             String?                @map("deleted_by")
   createdAt             DateTime               @default(now()) @map("created_at")
