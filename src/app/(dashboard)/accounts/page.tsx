@@ -27,6 +27,12 @@ import {
     Pencil,
     ArrowRightLeft,
     RefreshCw,
+    Copy,
+    Clock,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
 } from "lucide-react";
 import {
     listarCuentas,
@@ -135,11 +141,14 @@ export default function AccountsPage() {
 
     const [cuentas, setCuentas] = useState<AccountItem[]>([]);
     const [historial, setHistorial] = useState<HistoryItem[]>([]);
+    const [totalHistorial, setTotalHistorial] = useState(0);
+    const [historialPage, setHistorialPage] = useState(1);
+    const [historialTotalPages, setHistorialTotalPages] = useState(1);
     const [cargando, setCargando] = useState(true);
     const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+    const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
 
     const [openCreate, setOpenCreate] = useState(false);
     const [openEdit, setOpenEdit] = useState(false);
@@ -181,12 +190,30 @@ export default function AccountsPage() {
         }
     }, [toast]);
 
-    const cargarHistorial = useCallback(async (accountId: string) => {
-        if (!accountId) return;
+    const cargarHistorial = useCallback(async (accountIds: string[], page = 1) => {
+        if (accountIds.length === 0) {
+            setHistorial([]);
+            setTotalHistorial(0);
+            setHistorialTotalPages(1);
+            return;
+        }
         setCargandoHistorial(true);
         try {
-            const res = await obtenerHistorialCuenta(accountId, { page: 1, pageSize: 20 });
-            setHistorial((res.transacciones as HistoryItem[]) || []);
+            const allTx: HistoryItem[] = [];
+            for (const id of accountIds) {
+                const res = await obtenerHistorialCuenta(id, { page, pageSize: 50 });
+                const txs = (res.transacciones as HistoryItem[]) || [];
+                allTx.push(...txs);
+            }
+            // Sort by date descending
+            allTx.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const pageSize = 20;
+            const total = allTx.length;
+            const pages = Math.max(1, Math.ceil(total / pageSize));
+            const start = (page - 1) * pageSize;
+            setHistorial(allTx.slice(start, start + pageSize));
+            setTotalHistorial(total);
+            setHistorialTotalPages(pages);
         } catch {
             toast({ title: "Error", description: "No se pudo cargar el historial", variant: "error" });
         } finally {
@@ -200,21 +227,35 @@ export default function AccountsPage() {
         }
     }, [status, cargarCuentas]);
 
-    useEffect(() => {
-        if (!selectedAccountId && cuentas.length > 0) {
-            setSelectedAccountId(cuentas[0].id);
-        }
-    }, [cuentas, selectedAccountId]);
 
     useEffect(() => {
-        if (selectedAccountId) void cargarHistorial(selectedAccountId);
-    }, [selectedAccountId, cargarHistorial]);
+        void cargarHistorial(selectedAccountIds, historialPage);
+    }, [selectedAccountIds, historialPage, cargarHistorial]);
+
+    const toggleAccountSelection = (accountId: string) => {
+        setSelectedAccountIds(prev => {
+            if (prev.includes(accountId)) {
+                return prev.filter(id => id !== accountId);
+            }
+            return [...prev, accountId];
+        });
+        setHistorialPage(1);
+    };
+
+    const getCurrencyFlag = (code: string) => {
+        const c = currencies.find(cur => cur.code === code);
+        return c?.flag || "💰";
+    };
+
+    const copyToClipboard = (text: string) => {
+        void navigator.clipboard.writeText(text);
+        toast({ title: "Copiado", description: "Número copiado al portapapeles", variant: "success" });
+    };
 
     if (status === "loading") return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-zinc-500">Cargando...</div>;
     if (status === "unauthenticated") { router.push("/login"); return null; }
 
     const filteredAccounts = cuentas.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const selectedAccount = cuentas.find((c) => c.id === selectedAccountId) ?? null;
 
     const updateFormByTarget = (target: "create" | "edit", updater: (prev: AccountFormState) => AccountFormState) => {
         if (target === "create") setCreateForm(updater);
@@ -257,16 +298,7 @@ export default function AccountsPage() {
     const formatMoney = (amount: number, currency: string) =>
         new Intl.NumberFormat("es-PE", { style: "currency", currency }).format(Number(amount || 0));
 
-    const fallbackSaldoInicial = selectedAccount
-        ? {
-            fecha: selectedAccount.createdAt ? new Date(selectedAccount.createdAt) : new Date(),
-            descripcion: "Balance inicial",
-            monto: Number(selectedAccount.initialBalance || 0),
-            categoria: "Saldo inicial",
-            cuenta: selectedAccount.name,
-            origen: "Saldo inicial",
-        }
-        : null;
+    const selectedAccounts = cuentas.filter(c => selectedAccountIds.includes(c.id));
 
     const openCreateModal = () => {
         setCreateForm(emptyAccountForm);
@@ -295,7 +327,7 @@ export default function AccountsPage() {
         toast({ title: "Éxito", description: "Cuenta creada correctamente.", variant: "success" });
         setOpenCreate(false);
         const list = await cargarCuentas();
-        if (list.length > 0 && !selectedAccountId) setSelectedAccountId(list[0].id);
+        if (list.length > 0 && selectedAccountIds.length === 0) setSelectedAccountIds(list.map(c => c.id));
     };
 
     const openEditModal = (account: AccountItem) => {
@@ -348,10 +380,8 @@ export default function AccountsPage() {
 
         toast({ title: "Eliminada", description: "Cuenta eliminada correctamente.", variant: "success" });
         const list = await cargarCuentas();
-        if (selectedAccountId === id) {
-            setSelectedAccountId(list[0]?.id || "");
-            setHistorial([]);
-        }
+        setSelectedAccountIds(prev => prev.filter(aid => aid !== id));
+        if (list.length === 0) setHistorial([]);
     };
 
     const handleToggleFavorito = async (account: AccountItem) => {
@@ -392,7 +422,7 @@ export default function AccountsPage() {
         toast({ title: "Transferencia creada", description: "La transferencia se registró correctamente.", variant: "success" });
         setOpenTransfer(false);
         await cargarCuentas();
-        if (selectedAccountId) await cargarHistorial(selectedAccountId);
+        if (selectedAccountIds.length > 0) await cargarHistorial(selectedAccountIds, historialPage);
     };
 
     const handleRebalancear = () => {
@@ -547,7 +577,7 @@ export default function AccountsPage() {
                     </div>
 
                     {cargando ? (
-                        <div className="p-6 space-y-3">{[1, 2].map((i) => <div key={i} className="h-24 rounded-md bg-zinc-900/60 animate-pulse" />)}</div>
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{[1, 2, 3].map((i) => <div key={i} className="h-[140px] rounded-xl bg-zinc-900/60 animate-pulse" />)}</div>
                     ) : filteredAccounts.length === 0 ? (
                         <div className="px-6 py-12 text-center">
                             <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center"><CreditCard className="w-5 h-5 text-zinc-600" /></div>
@@ -556,36 +586,90 @@ export default function AccountsPage() {
                             <div className="mt-8 border-t border-zinc-800/60 pt-6"><Button onClick={openCreateModal} className="h-9 px-6 text-xs font-semibold bg-[#D3FF0A] text-black hover:bg-[#b8e600]"><Plus className="w-3.5 h-3.5 mr-2" />Crear cuenta</Button></div>
                         </div>
                     ) : (
-                        <div className="space-y-3 p-3">
-                            {filteredAccounts.map((account) => (
-                                <div key={account.id} onClick={() => setSelectedAccountId(account.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedAccountId(account.id); }} className={`w-full rounded-xl border p-4 text-left transition-colors cursor-pointer ${selectedAccountId === account.id ? "border-lime-500" : "border-zinc-800 hover:border-zinc-700"}`}>
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {renderIcon(account.icon, "w-9 h-9")}
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-semibold text-zinc-100 truncate">{account.name}</p>
-                                                <p className="text-xs text-zinc-500 truncate">{account.type || "Cuenta"}: {account.accountNumber || "-"}</p>
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredAccounts.map((account) => {
+                                const isSelected = selectedAccountIds.includes(account.id);
+                                return (
+                                    <div
+                                        key={account.id}
+                                        onClick={() => toggleAccountSelection(account.id)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleAccountSelection(account.id); }}
+                                        className={`rounded-xl border p-5 text-left transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[140px] ${isSelected
+                                            ? "border-lime-500 bg-[#0d0f0a]/40 shadow-[0_0_12px_rgba(211,255,10,0.06)]"
+                                            : "border-zinc-800 hover:border-zinc-600 bg-transparent"
+                                            }`}
+                                    >
+                                        {/* Top: Icon + Name + Actions */}
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <span className="text-lg leading-none">{getCurrencyFlag(account.currency)}</span>
+                                                <p className="text-[14px] font-semibold text-zinc-100 truncate">{account.name}</p>
                                             </div>
+                                            <div onClick={(e) => e.stopPropagation()}>{renderAccountActions(account)}</div>
                                         </div>
-                                        <div onClick={(e) => e.stopPropagation()}>{renderAccountActions(account)}</div>
+
+                                        {/* Middle: Account type + number */}
+                                        {account.accountNumber && (
+                                            <div className="mt-3 flex items-center gap-1.5">
+                                                <span className="text-xs text-zinc-500">
+                                                    {account.type === "credit_card" ? "Tarjeta de crédito" : account.type === "debit_card" ? "Tarjeta de débito" : account.type === "savings" ? "Ahorro" : account.type || "Número"}: {account.accountNumber}
+                                                </span>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); copyToClipboard(account.accountNumber || ""); }}
+                                                    className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Bottom: Balance + Badge */}
+                                        <div className="mt-auto pt-3 flex items-center gap-2.5">
+                                            <span className={`text-xl font-semibold ${Number(account.currentBalance) >= 0 ? "text-emerald-400" : "text-red-400"
+                                                }`}>
+                                                {new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(account.currentBalance))}
+                                            </span>
+                                            <span className="text-[9px] text-zinc-500 font-medium uppercase">{account.currency}</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800/80 text-zinc-400 border border-zinc-700/50">Balance inicial</span>
+                                        </div>
                                     </div>
-                                    <div className="mt-3 flex items-center gap-3">
-                                        <span className="text-2xl font-semibold text-emerald-400">{formatMoney(account.currentBalance, account.currency)}</span>
-                                        <span className="text-xs px-2 py-1 rounded-full bg-zinc-800 text-zinc-300">Balance inicial</span>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </section>
 
+                {/* ─── Historial de cuentas ─── */}
                 <section className="space-y-3">
-                    <h2 className="text-[22px] leading-none font-semibold text-zinc-100">Historial de cuentas</h2>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-4.5 h-4.5 text-zinc-400" />
+                            <h2 className="text-[22px] leading-none font-semibold text-zinc-100">Historial de cuentas</h2>
+                        </div>
+
+                        {/* Filter chips */}
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {selectedAccounts.map(acc => (
+                                <button
+                                    key={acc.id}
+                                    onClick={() => toggleAccountSelection(acc.id)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-xs text-zinc-300 hover:bg-zinc-700/80 hover:border-zinc-600 transition-colors group"
+                                >
+                                    <span className="text-[11px] leading-none">{getCurrencyFlag(acc.currency)}</span>
+                                    <span className="font-medium">{acc.name}</span>
+                                    <X className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="rounded-xl border border-zinc-800/70 bg-[#111114] overflow-hidden">
                         <table className="w-full text-left text-xs">
                             <thead>
                                 <tr className="border-b border-zinc-800/60 text-zinc-500">
-                                    <th className="py-3 px-4 font-medium">Fecha</th>
+                                    <th className="py-3 px-4 font-medium">Fecha ↓</th>
                                     <th className="py-3 px-4 font-medium">Descripción</th>
                                     <th className="py-3 px-4 font-medium">Monto</th>
                                     <th className="py-3 px-4 font-medium">Categoría</th>
@@ -594,35 +678,67 @@ export default function AccountsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {!selectedAccount ? (
-                                    <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Selecciona una cuenta para ver sus últimas transacciones</td></tr>
+                                {selectedAccountIds.length === 0 ? (
+                                    <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Selecciona una o más cuentas para ver su historial</td></tr>
                                 ) : cargandoHistorial ? (
-                                    <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Cargando historial...</td></tr>
+                                    <tr><td colSpan={6} className="py-10 text-center text-zinc-500 animate-pulse">Cargando historial...</td></tr>
                                 ) : historial.length === 0 ? (
-                                    fallbackSaldoInicial && fallbackSaldoInicial.monto > 0 ? (
-                                        <tr className="border-b border-zinc-900/70 last:border-0">
-                                            <td className="py-3 px-4 text-zinc-400">{fallbackSaldoInicial.fecha.toLocaleDateString("es-PE", { month: "short", day: "numeric" })}</td>
-                                            <td className="py-3 px-4 text-zinc-300">{fallbackSaldoInicial.descripcion}</td>
-                                            <td className="py-3 px-4 font-medium text-emerald-400">{formatMoney(fallbackSaldoInicial.monto, selectedAccount.currency)}</td>
-                                            <td className="py-3 px-4 text-zinc-400">{fallbackSaldoInicial.categoria}</td>
-                                            <td className="py-3 px-4 text-zinc-400">{fallbackSaldoInicial.cuenta}</td>
-                                            <td className="py-3 px-4 text-zinc-500">{fallbackSaldoInicial.origen}</td>
-                                        </tr>
-                                    ) : (
-                                        <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Esta cuenta aún no tiene movimientos</td></tr>
-                                    )
+                                    <tr><td colSpan={6} className="py-10 text-center text-zinc-500">No hay transacciones registradas en las cuentas seleccionadas</td></tr>
                                 ) : historial.map((tx) => (
-                                    <tr key={tx.id} className="border-b border-zinc-900/70 last:border-0">
-                                        <td className="py-3 px-4 text-zinc-400">{new Date(tx.date).toLocaleDateString("es-PE", { month: "short", day: "numeric" })}</td>
+                                    <tr key={tx.id} className="border-b border-zinc-900/70 last:border-0 hover:bg-zinc-900/30 transition-colors">
+                                        <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">{new Date(tx.date).toLocaleDateString("es-PE", { month: "short", day: "numeric" })}</td>
                                         <td className="py-3 px-4 text-zinc-300">{tx.description}</td>
-                                        <td className={`py-3 px-4 font-medium ${tx.type === "income" ? "text-emerald-400" : "text-zinc-200"}`}>{formatMoney(tx.amountOriginal, tx.account?.currency || selectedAccount.currency)}</td>
-                                        <td className="py-3 px-4 text-zinc-400">{tx.category?.name || "Sin categoría"}</td>
-                                        <td className="py-3 px-4 text-zinc-400">{tx.account?.name || selectedAccount.name}</td>
-                                        <td className="py-3 px-4 text-zinc-500">{tx.source === "initial_balance" ? "Saldo inicial" : tx.source === "transfer" ? "Transferencia" : "Web"}</td>
+                                        <td className="py-3 px-4 whitespace-nowrap">
+                                            <span className={`font-medium ${tx.type === "income" ? "text-emerald-400" : "text-zinc-200"}`}>
+                                                {formatMoney(tx.amountOriginal, tx.account?.currency || "PEN")}
+                                            </span>
+                                            <span className="text-[9px] text-zinc-500 font-medium uppercase ml-1">{tx.account?.currency || "PEN"}</span>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            {tx.category ? (
+                                                <span className="inline-flex items-center gap-1 text-zinc-400">
+                                                    <span className="text-[11px]">{tx.category.icon}</span>
+                                                    <span>{tx.category.name}</span>
+                                                </span>
+                                            ) : <span className="text-zinc-600">—</span>}
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <span className="inline-flex items-center gap-1.5 text-zinc-400">
+                                                <span className="text-[11px]">{getCurrencyFlag(tx.account?.currency || "PEN")}</span>
+                                                {tx.account?.name || "—"}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <span className="text-zinc-500">
+                                                {tx.source === "initial_balance" ? <CreditCard className="w-3.5 h-3.5 inline" /> : tx.source === "transfer" ? <ArrowRightLeft className="w-3.5 h-3.5 inline" /> : <Wallet className="w-3.5 h-3.5 inline" />}
+                                            </span>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+
+                        {/* Pagination */}
+                        {historial.length > 0 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800/60">
+                                <span className="text-[11px] text-zinc-500">{totalHistorial} transacciones</span>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setHistorialPage(1)} disabled={historialPage <= 1} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                        <ChevronsLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => setHistorialPage(p => Math.max(1, p - 1))} disabled={historialPage <= 1} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="text-[11px] text-zinc-400 px-2">Página {historialPage} de {historialTotalPages}</span>
+                                    <button onClick={() => setHistorialPage(p => Math.min(historialTotalPages, p + 1))} disabled={historialPage >= historialTotalPages} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => setHistorialPage(historialTotalPages)} disabled={historialPage >= historialTotalPages} className="w-7 h-7 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                        <ChevronsRight className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </section>
             </main>
