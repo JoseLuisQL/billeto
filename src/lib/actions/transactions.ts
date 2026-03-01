@@ -9,6 +9,7 @@ import type { RuleResult } from "@/lib/actions/rules";
 import { requireWorkspaceAccess } from "@/lib/security/access";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 import { SYSTEM_CATEGORY_OWNER_ID } from "@/lib/categories-defaults";
+import { convertAndSave, preloadRates } from "@/lib/fx-service";
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -163,6 +164,12 @@ export async function crearTransaccion(formData: FormData) {
         // expense -> resta, income -> suma
         const cambioBalance = type === "income" ? amount : -amount;
 
+        // ── Multi-currency conversion ──
+        const currencyOrig = cuenta?.currency || workspace.baseCurrency;
+        const { converted: amountBase, fxRateId } = await convertAndSave(
+            amount, currencyOrig, workspace.baseCurrency
+        );
+
         // Crear transaccion y actualizar balance en una transaccion atomica
         const resultado = await prisma.$transaction(async (tx: TxClient) => {
             // 1. Crear la transaccion
@@ -172,9 +179,10 @@ export async function crearTransaccion(formData: FormData) {
                     accountId: finalAccountId ?? undefined,
                     categoryId,
                     amountOriginal: amount,
-                    currencyOriginal: cuenta?.currency || workspace.baseCurrency,
-                    amountBase: amount,
+                    currencyOriginal: currencyOrig,
+                    amountBase,
                     baseCurrency: workspace.baseCurrency,
+                    fxRateId: fxRateId ?? undefined,
                     description: description.trim(),
                     type,
                     source: "web",
@@ -327,6 +335,25 @@ export async function crearTransferenciaEntreCuentas(formData: FormData) {
         const transferGroupId = randomUUID();
         const baseDescription = descriptionInput.length > 0 ? descriptionInput : `Transferencia ${fromAccount.name} → ${toAccount.name}`;
 
+        // ── Multi-currency conversion for transfers ──
+        const { converted: salidaAmountBase, fxRateId: salidaFxId } = await convertAndSave(
+            amount, fromAccount.currency, workspace.baseCurrency
+        );
+
+        // Cross-currency: convert amount from source currency to destination currency
+        let entradaAmount = amount;
+        let entradaFxId: string | null = null;
+        if (fromAccount.currency !== toAccount.currency) {
+            const { converted, fxRateId: fxId } = await convertAndSave(
+                amount, fromAccount.currency, toAccount.currency
+            );
+            entradaAmount = converted;
+            entradaFxId = fxId;
+        }
+        const { converted: entradaAmountBase, fxRateId: entradaBaseFxId } = await convertAndSave(
+            entradaAmount, toAccount.currency, workspace.baseCurrency
+        );
+
         await prisma.$transaction(async (tx: TxClient) => {
             const salida = await tx.transaction.create({
                 data: {
@@ -334,8 +361,9 @@ export async function crearTransferenciaEntreCuentas(formData: FormData) {
                     accountId: fromAccount.id,
                     amountOriginal: amount,
                     currencyOriginal: fromAccount.currency,
-                    amountBase: amount,
+                    amountBase: salidaAmountBase,
                     baseCurrency: workspace.baseCurrency,
+                    fxRateId: salidaFxId ?? undefined,
                     description: `Transferencia a ${toAccount.name}${descriptionInput ? ` · ${descriptionInput}` : ""}`,
                     type: "expense",
                     source: "transfer",
@@ -349,10 +377,11 @@ export async function crearTransferenciaEntreCuentas(formData: FormData) {
                 data: {
                     workspaceId: workspace.id,
                     accountId: toAccount.id,
-                    amountOriginal: amount,
+                    amountOriginal: entradaAmount,
                     currencyOriginal: toAccount.currency,
-                    amountBase: amount,
+                    amountBase: entradaAmountBase,
                     baseCurrency: workspace.baseCurrency,
+                    fxRateId: entradaBaseFxId ?? entradaFxId ?? undefined,
                     description: `Transferencia desde ${fromAccount.name}${descriptionInput ? ` · ${descriptionInput}` : ""}`,
                     type: "income",
                     source: "transfer",
@@ -372,7 +401,7 @@ export async function crearTransferenciaEntreCuentas(formData: FormData) {
             await tx.account.update({
                 where: { id: toAccount.id },
                 data: {
-                    currentBalance: { increment: amount },
+                    currentBalance: { increment: entradaAmount },
                 },
             });
 
@@ -517,15 +546,22 @@ export async function editarTransaccion(input: {
                 });
             }
 
+            // ── Multi-currency conversion for edit ──
+            const editCurrencyOrig = cuentaNueva?.currency || workspace.baseCurrency;
+            const { converted: editAmountBase, fxRateId: editFxId } = await convertAndSave(
+                amount, editCurrencyOrig, workspace.baseCurrency
+            );
+
             const updated = await tx.transaction.updateMany({
                 where: { id: input.id, workspaceId: workspace.id, deletedAt: null },
                 data: {
                     accountId,
                     categoryId,
                     amountOriginal: amount,
-                    currencyOriginal: cuentaNueva?.currency || workspace.baseCurrency,
-                    amountBase: amount,
+                    currencyOriginal: editCurrencyOrig,
+                    amountBase: editAmountBase,
                     baseCurrency: workspace.baseCurrency,
+                    fxRateId: editFxId ?? undefined,
                     description,
                     type,
                     date,
@@ -658,12 +694,19 @@ export async function obtenerResumenDashboard(rango?: { from?: string; to?: stri
         const inicioMes = rango?.from ? new Date(rango.from) : new Date(ahora.getFullYear(), ahora.getMonth(), 1);
         const finMes = rango?.to ? new Date(rango.to) : new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
 
-        // Balance total de cuentas
+        // Balance total de cuentas (convertido a moneda base)
         const cuentas = await prisma.account.findMany({
             where: { workspaceId: workspace.id, deletedAt: null },
         });
 
-        const balanceTotal = cuentas.reduce((sum, acc) => sum + Number(acc.currentBalance), 0);
+        // Pre-cargar rates para todas las monedas de las cuentas
+        const accountCurrencies = cuentas.map(c => c.currency);
+        const fxRates = await preloadRates(workspace.baseCurrency, accountCurrencies);
+
+        const balanceTotal = cuentas.reduce((sum, acc) => {
+            const rate = fxRates.get(acc.currency) ?? 1;
+            return sum + Number(acc.currentBalance) * rate;
+        }, 0);
 
         // Ingresos y gastos del mes
         const transaccionesMes = await prisma.transaction.findMany({

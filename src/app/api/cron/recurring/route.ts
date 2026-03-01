@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { convertAndSave } from "@/lib/fx-service";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,11 @@ export async function GET(req: Request) {
                 const cambioBalance =
                     rec.type === "income" ? Number(rec.amount) : -Number(rec.amount);
 
+                // ── Multi-currency conversion ──
+                const { converted: recAmountBase, fxRateId: recFxId } = await convertAndSave(
+                    Number(rec.amount), rec.currency, rec.workspace.baseCurrency
+                );
+
                 // Calcular siguiente fecha
                 let nextRun: Date;
                 if (rec.dayOfMonth && rec.frequency === "monthly") {
@@ -80,8 +86,9 @@ export async function GET(req: Request) {
                             categoryId: rec.categoryId,
                             amountOriginal: rec.amount,
                             currencyOriginal: rec.currency,
-                            amountBase: rec.amount,
+                            amountBase: recAmountBase,
                             baseCurrency: rec.workspace.baseCurrency,
+                            fxRateId: recFxId ?? undefined,
                             description: `${rec.name} (recurrente)`,
                             type: rec.type,
                             date: ahora,

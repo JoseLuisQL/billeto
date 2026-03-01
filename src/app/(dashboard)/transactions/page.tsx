@@ -126,7 +126,7 @@ export default function TransactionsPage() {
         ingresosMes: number;
         gastosMes: number;
         moneda: string;
-    }>({ balanceTotal: 0, ingresosMes: 0, gastosMes: 0, moneda: "PEN" });
+    }>({ balanceTotal: 0, ingresosMes: 0, gastosMes: 0, moneda: "" });
     const [topCategoria, setTopCategoria] = useState<{ name: string; value: number } | null>(null);
 
     // UI State
@@ -659,10 +659,7 @@ export default function TransactionsPage() {
                     <div className="flex items-center gap-1 bg-[#18181b] rounded-[6px] p-1 w-fit border border-zinc-800/80">
                         <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D3FF0A]/10 text-[#D3FF0A] rounded-[4px] text-xs font-medium">
                             <Filter className="w-3 h-3" />
-                            PEN
-                        </button>
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-500 hover:text-zinc-300 rounded-[4px] text-xs font-medium transition-colors">
-                            PEN
+                            {resumen.moneda || "---"}
                         </button>
                     </div>
                 </div>
@@ -674,9 +671,9 @@ export default function TransactionsPage() {
                         <div className="text-zinc-400 text-[13px] font-medium">Balance</div>
                         <div className="flex items-baseline gap-1 mt-2">
                             <span className="text-[26px] font-semibold text-[#00E676] tracking-tight">
-                                {formatearMoneda(resumen.balanceTotal, "").replace("PEN", "").trim()}
+                                {formatearMoneda(resumen.balanceTotal, resumen.moneda).replace(resumen.moneda, "").trim()}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">{resumen.moneda}</span>
                         </div>
                     </div>
 
@@ -685,9 +682,9 @@ export default function TransactionsPage() {
                         <div className="text-zinc-400 text-[13px] font-medium">Gastos</div>
                         <div className="flex items-baseline gap-1 mt-2">
                             <span className="text-[26px] font-semibold text-[#FF4444] tracking-tight">
-                                {formatearMoneda(-resumen.gastosMes, "").replace("PEN", "").trim()}
+                                {formatearMoneda(-resumen.gastosMes, resumen.moneda).replace(resumen.moneda, "").trim()}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">{resumen.moneda}</span>
                         </div>
                     </div>
 
@@ -696,9 +693,9 @@ export default function TransactionsPage() {
                         <div className="text-zinc-400 text-[13px] font-medium">Ingresos</div>
                         <div className="flex items-baseline gap-1 mt-2">
                             <span className="text-[26px] font-semibold text-[#00E676] tracking-tight">
-                                {formatearMoneda(resumen.ingresosMes, "").replace("PEN", "").trim()}
+                                {formatearMoneda(resumen.ingresosMes, resumen.moneda).replace(resumen.moneda, "").trim()}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">PEN</span>
+                            <span className="text-[10px] text-zinc-500 font-medium ml-0.5 uppercase">{resumen.moneda}</span>
                         </div>
                     </div>
 
@@ -713,8 +710,8 @@ export default function TransactionsPage() {
                                 <div className="flex-1">
                                     <div className="text-[15px] font-medium text-white mb-0.5">{topCategoria.name.split(" ").slice(1).join(" ")}</div>
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-[12px] font-semibold text-[#FF4444]">{formatearMoneda(-topCategoria.value, "").replace("PEN", "").trim()}</span>
-                                        <span className="text-[9px] text-zinc-600 font-medium uppercase">PEN</span>
+                                        <span className="text-[12px] font-semibold text-[#FF4444]">{formatearMoneda(-topCategoria.value, resumen.moneda).replace(resumen.moneda, "").trim()}</span>
+                                        <span className="text-[9px] text-zinc-600 font-medium uppercase">{resumen.moneda}</span>
                                     </div>
                                 </div>
                             </div>
@@ -787,7 +784,7 @@ export default function TransactionsPage() {
                                                     <span className={`text-[13px] font-medium ${tx.type === "income" ? "text-[#00E676]" : "text-[#FF4444]"}`}>
                                                         {tx.type === "income" ? "" : "-"}{Math.abs(tx.amountOriginal).toFixed(2).replace(".", ",")}
                                                     </span>
-                                                    <span className="text-[9px] text-zinc-500 font-medium uppercase">PEN</span>
+                                                    <span className="text-[9px] text-zinc-500 font-medium uppercase">{tx.currencyOriginal || resumen.moneda}</span>
                                                 </div>
                                             </td>
                                             <td className="py-4 px-3 align-middle">

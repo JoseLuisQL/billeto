@@ -17,6 +17,7 @@ import {
   ensureDefaultCategoriesForWorkspace,
   normalizeCategoryName,
 } from "@/lib/categories-defaults";
+import { convertAndSave } from "@/lib/fx-service";
 
 type ToolErrorResult = {
   success: false;
@@ -268,7 +269,7 @@ export async function POST(req: Request) {
     const incomeCategories = visibleCategories.filter((c) => c.type === "income" || c.type === "both").map((c) => c.name);
 
     const systemPrompt = `${SECURITY_PREAMBLE}Eres Billeto, asistente financiero profesional.
-Fecha: ${currentDate}. Moneda: PEN (S/). Usuario: ${session.user.name || "Usuario"}.
+Fecha: ${currentDate}. Moneda: ${access.workspace.baseCurrency}. Usuario: ${session.user.name || "Usuario"}.
 
 Estilo de respuesta:
 - Profesional, conciso, sin emojis innecesarios.
@@ -365,7 +366,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                 const accounts = await prisma.account.findMany({
                   where: { workspaceId, deletedAt: null },
                   orderBy: { name: "asc" },
-                  select: { id: true, name: true, normalizedName: true },
+                  select: { id: true, name: true, normalizedName: true, currency: true },
                 });
 
                 if (finalAccountId) {
@@ -453,6 +454,14 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   };
                 }
 
+                const finalAccount = finalAccountId ? accounts.find(a => a.id === finalAccountId) : null;
+                const accountCurrency = finalAccount?.currency || access.workspace.baseCurrency;
+
+                // ── Multi-currency conversion ──
+                const { converted: chatAmountBase, fxRateId: chatFxId } = await convertAndSave(
+                  amountNum, accountCurrency, access.workspace.baseCurrency
+                );
+
                 const tx = await prisma.$transaction(async (db) => {
                   if (finalAccountId) {
                     const updatedAccount = await db.account.updateMany({
@@ -468,9 +477,10 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   const transaccion = await db.transaction.create({
                     data: {
                       amountOriginal: amountNum,
-                      amountBase: amountNum,
-                      currencyOriginal: "PEN",
-                      baseCurrency: "PEN",
+                      amountBase: chatAmountBase,
+                      currencyOriginal: accountCurrency,
+                      baseCurrency: access.workspace.baseCurrency,
+                      fxRateId: chatFxId ?? undefined,
                       description: args.description,
                       type: args.type,
                       date: args.date ? new Date(args.date) : new Date(),
@@ -528,7 +538,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   return transaccion;
                 });
 
-                const selectedAccount = finalAccountId ? accounts.find((a) => a.id === finalAccountId) : null;
+                const selectedAccount = finalAccount;
 
                 return {
                   success: true,
@@ -537,7 +547,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     id: tx.id,
                     description: tx.description,
                     amount: tx.amountBase,
-                    currency: "PEN",
+                    currency: access.workspace.baseCurrency,
                     accountName: tx.account?.name || "Sin cuenta específica",
                     categoryName: tx.category?.name || "Otros",
                     date: formatDateForWorkspace(tx.date, workspaceTimezone),
@@ -546,7 +556,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   summaryCard: {
                     title: "Transacción Registrada",
                     id: tx.id,
-                    amount: `S/${Number(tx.amountBase).toFixed(2)} PEN`,
+                    amount: `${Number(tx.amountOriginal).toFixed(2)} ${finalAccount?.currency || access.workspace.baseCurrency}${finalAccount?.currency && finalAccount.currency !== access.workspace.baseCurrency ? ` (${Number(tx.amountBase).toFixed(2)} ${access.workspace.baseCurrency})` : ""}`,
                     description: tx.description,
                     category: tx.category?.name || "Otros",
                     account: tx.account?.name || "Sin cuenta específica",
