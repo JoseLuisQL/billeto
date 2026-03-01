@@ -2,85 +2,110 @@
 
 import { motion } from "framer-motion";
 import {
-    ScanLine,
-    MessageSquare,
-    PiggyBank,
-    Users,
+    Bot,
     BarChart3,
+    PiggyBank,
+    Target,
+    RefreshCw,
     Shield,
 } from "lucide-react";
+import Image from "next/image";
 
 /**
- * Sección de Funcionalidades (Features) con diseño Bento Grid.
- * Cada tarjeta representa una funcionalidad clave de Billeto.
- * Las tarjetas tienen tamaños distintos para crear una grilla irregular.
+ * Sección de Features con diseño Bento Grid premium.
+ * Cada tarjeta tiene micro-interacciones, efectos de brillo y contenido rico.
+ * La tarjeta principal (IA) es más grande con una demo simulada.
  */
 
 const funcionalidades = [
     {
-        icono: ScanLine,
-        titulo: "OCR Inteligente",
+        icono: Bot,
+        titulo: "Asistente IA",
         descripcion:
-            "Envía una foto de tu ticket o recibo y la IA extrae automáticamente el monto, fecha y comercio.",
+            "Registra gastos con lenguaje natural. Di 'Gasté 30 en almuerzo' y la IA se encarga del resto.",
         clase: "md:col-span-2 md:row-span-2",
         destacado: true,
-    },
-    {
-        icono: MessageSquare,
-        titulo: "WhatsApp Nativo",
-        descripcion:
-            "\"Gasté 30 en almuerzo\" — registra gastos por texto, audio o foto directamente desde WhatsApp.",
-        clase: "md:col-span-1",
-        destacado: false,
+        gradient: "from-lime-400/10 via-transparent to-emerald-400/5",
     },
     {
         icono: BarChart3,
-        titulo: "Analítica IA",
+        titulo: "Analíticas avanzadas",
         descripcion:
-            "Pregunta \"¿cuánto gasté este mes?\" y obtén resúmenes inteligentes con gráficos.",
+            "Dashboards con gráficos de actividad, distribución por categoría, tendencias y balances en tiempo real.",
         clase: "md:col-span-1",
         destacado: false,
+        gradient: "from-violet-400/10 to-transparent",
+    },
+    {
+        icono: Target,
+        titulo: "Metas financieras",
+        descripcion:
+            "Define metas de ahorro con deadlines y trackea tu progreso con contribuciones automáticas.",
+        clase: "md:col-span-1",
+        destacado: false,
+        gradient: "from-amber-400/10 to-transparent",
     },
     {
         icono: PiggyBank,
-        titulo: "Presupuestos Inteligentes",
+        titulo: "Presupuestos inteligentes",
         descripcion:
-            "Crea presupuestos por categoría con alertas al 80% y 100% de uso.",
+            "Crea presupuestos por categoría con alertas al 80% y 100%. Nunca más te pases de tu límite.",
         clase: "md:col-span-1",
         destacado: false,
+        gradient: "from-cyan-400/10 to-transparent",
     },
     {
-        icono: Users,
-        titulo: "Gastos Grupales",
+        icono: RefreshCw,
+        titulo: "Recurrentes y suscripciones",
         descripcion:
-            "Divide gastos con amigos usando Vaquitas. Reparto automático y seguimiento en tiempo real.",
+            "Trackea Netflix, Spotify y todos tus pagos periódicos. Automatiza registros con un clic.",
         clase: "md:col-span-1",
         destacado: false,
+        gradient: "from-rose-400/10 to-transparent",
     },
     {
         icono: Shield,
-        titulo: "Seguridad Total",
+        titulo: "Seguridad de nivel bancario",
         descripcion:
-            "Cifrado end-to-end, auditoría completa y control total sobre tus datos financieros.",
+            "Auditoría completa, cifrado end-to-end, rate limiting y protección contra inyección de prompts. Tu data está segura.",
         clase: "md:col-span-2",
         destacado: false,
+        gradient: "from-emerald-400/10 via-transparent to-lime-400/5",
     },
 ];
 
 export function Features() {
     return (
-        <section className="py-20">
-            <div className="container mx-auto px-4">
+        <section id="funcionalidades" className="py-24 relative overflow-hidden">
+            {/* Imagen de fondo */}
+            <Image
+                src="/features-bg.png"
+                alt=""
+                fill
+                className="object-cover opacity-20"
+                quality={80}
+            />
+            <div className="absolute inset-0 bg-zinc-950/80" />
+
+            <div className="container mx-auto px-4 relative z-10">
                 {/* Encabezado de sección */}
-                <div className="text-center mb-16">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                        Todo lo que necesitas para{" "}
-                        <span className="text-lime-400">controlar tu dinero</span>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="text-center mb-16"
+                >
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-lime-400/70 mb-4">Funcionalidades</p>
+                    <h2 className="text-3xl md:text-5xl font-bold mb-4">
+                        Todo para controlar{" "}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-300 to-emerald-400">
+                            tu dinero
+                        </span>
                     </h2>
-                    <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                        Funcionalidades diseñadas para eliminar la fricción del control financiero
+                    <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
+                        Herramientas potentes diseñadas para eliminar la fricción del control financiero
                     </p>
-                </div>
+                </motion.div>
 
                 {/* Bento Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -89,55 +114,61 @@ export function Features() {
                         return (
                             <motion.div
                                 key={feat.titulo}
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 24 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
-                                transition={{ delay: i * 0.1 }}
-                                className={`${feat.clase} group relative rounded-xl border border-white/10 bg-zinc-900 p-6 hover:border-white/20 hover:scale-[1.02] transition-all duration-300 overflow-hidden`}
+                                transition={{ delay: i * 0.08, duration: 0.5 }}
+                                className={`${feat.clase} group relative rounded-2xl border border-white/[0.06] bg-zinc-900/60 backdrop-blur-sm p-6 md:p-7 hover:border-white/15 transition-all duration-500 overflow-hidden`}
                             >
-                                {/* Efecto de brillo en hover */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-lime-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                {/* Efecto de gradiente en hover */}
+                                <div className={`absolute inset-0 bg-gradient-to-br ${feat.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+
+                                {/* Brillo esquina superior derecha */}
+                                <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/[0.02] rounded-full group-hover:bg-white/[0.04] transition-colors duration-500" />
 
                                 <div className="relative z-10">
-                                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg mb-4 ${feat.destacado
-                                            ? "bg-lime-400/10 text-lime-400"
-                                            : "bg-white/5 text-muted-foreground group-hover:text-white"
-                                        } transition-colors`}>
-                                        <Icono className="w-6 h-6" />
+                                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-5 transition-all duration-300 ${feat.destacado
+                                        ? "bg-lime-400/15 text-lime-400 shadow-lg shadow-lime-400/5"
+                                        : "bg-white/5 text-zinc-400 group-hover:text-white group-hover:bg-white/10"
+                                        }`}>
+                                        <Icono className="w-5 h-5" />
                                     </div>
 
-                                    <h3 className="text-lg font-semibold mb-2 text-white">
+                                    <h3 className="text-lg font-semibold mb-2 text-white group-hover:text-lime-50 transition-colors">
                                         {feat.titulo}
                                     </h3>
-                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                    <p className="text-sm text-zinc-400 leading-relaxed">
                                         {feat.descripcion}
                                     </p>
 
-                                    {/* Contenido extra para la tarjeta destacada (OCR) */}
+                                    {/* Contenido extra para la tarjeta destacada (IA) */}
                                     {feat.destacado && (
-                                        <div className="mt-6 p-4 rounded-lg bg-zinc-800/50 border border-white/5">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <div className="w-10 h-10 rounded-lg bg-lime-400/20 flex items-center justify-center text-lg">
-                                                    🧾
+                                        <div className="mt-6 space-y-3">
+                                            {/* Chat simulado */}
+                                            <div className="rounded-xl bg-zinc-800/60 border border-white/5 p-4 space-y-3">
+                                                {/* Mensaje del usuario */}
+                                                <div className="flex justify-end">
+                                                    <div className="bg-lime-400/10 border border-lime-400/20 rounded-xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
+                                                        <p className="text-sm text-lime-100">Gasté 45 soles en almuerzo en Wong</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground">Comercio detectado</p>
-                                                    <p className="text-sm font-medium text-white">Café Artesanal</p>
+                                                {/* Respuesta de la IA */}
+                                                <div className="flex justify-start">
+                                                    <div className="bg-zinc-700/40 border border-white/5 rounded-xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
+                                                        <p className="text-sm text-zinc-300">
+                                                            ✅ Registrado: <strong className="text-white">S/ 45.00</strong> en <span className="text-lime-400">🍔 Alimentación</span>
+                                                        </p>
+                                                        <p className="text-xs text-zinc-500 mt-1">Cuenta: Efectivo · Hoy</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 text-xs">
-                                                <div className="bg-zinc-900 rounded p-2">
-                                                    <p className="text-muted-foreground">Monto</p>
-                                                    <p className="text-white font-medium">$1,250</p>
-                                                </div>
-                                                <div className="bg-zinc-900 rounded p-2">
-                                                    <p className="text-muted-foreground">Fecha</p>
-                                                    <p className="text-white font-medium">15 Feb</p>
-                                                </div>
-                                                <div className="bg-zinc-900 rounded p-2">
-                                                    <p className="text-muted-foreground">Categoría</p>
-                                                    <p className="text-lime-400 font-medium">☕ Café</p>
-                                                </div>
+
+                                            {/* Badge de auto-categorización */}
+                                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/40 border border-white/5">
+                                                <div className="w-2 h-2 rounded-full bg-lime-400 animate-pulse" />
+                                                <span className="text-xs text-zinc-400">
+                                                    Categorización automática por IA con 98% de precisión
+                                                </span>
                                             </div>
                                         </div>
                                     )}
