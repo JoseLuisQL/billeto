@@ -17,6 +17,7 @@ model User {
   passwordHash           String?       @map("password_hash")
   avatar                 String?
   country                String?
+  isAdmin                Boolean       @default(false) @map("is_admin")
   scheduledForDeletionAt DateTime?     @map("scheduled_for_deletion_at")
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
@@ -476,4 +477,84 @@ model Subscription {
   workspace              Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+/// Configuración global del sistema (key-value JSON)
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+/// Invitaciones para nuevos administradores del sistema
+model AdminInvitation {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  role      String   @default("superadmin")
+  invitedBy String   @map("invited_by")
+  status    String   @default("pending")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("admin_invitations")
+}
+
+/// Incidentes de seguridad del sistema
+model Incident {
+  id          String    @id @default(cuid())
+  type        String
+  severity    String    @default("low")
+  title       String
+  description String?
+  metadata    Json?
+  status      String    @default("open")
+  resolvedBy  String?   @map("resolved_by")
+  resolvedAt  DateTime? @map("resolved_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, severity])
+  @@map("incidents")
+}
+
+/// Configuración de proveedores de IA (LLM)
+model AIProviderConfig {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  providerType String   @map("provider_type")
+  isActive     Boolean  @default(true) @map("is_active")
+  isDefault    Boolean  @default(false) @map("is_default")
+  apiKey       String?  @map("api_key")
+  baseUrl      String?  @map("base_url")
+  modelId      String   @map("model_id")
+  maxTokens    Int      @default(4096) @map("max_tokens")
+  temperature  Float    @default(0.7)
+  config       Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_provider_configs")
+}
+
+/// Configuración de tools del agente IA
+model AIToolConfig {
+  id          String   @id @default(cuid())
+  toolName    String   @unique @map("tool_name")
+  displayName String   @map("display_name")
+  description String
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  inputSchema Json     @map("input_schema")
+  config      Json?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_tool_configs")
 }
