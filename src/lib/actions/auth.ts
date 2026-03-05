@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { enforceRateLimit, isRateLimitError } from "@/lib/security/rate-limit";
 import { ensureDefaultCategoriesForWorkspace } from "@/lib/categories-defaults";
 import { headers } from "next/headers";
+import { enviarEmailVerificacion } from "@/lib/actions/email-verification";
 
 /**
  * Server Actions para autenticación.
@@ -169,6 +170,9 @@ export async function registrarUsuario(formData: FormData) {
             password,
             redirect: false,
         });
+
+        // Enviar email de verificación (fire-and-forget)
+        enviarEmailVerificacion(email).catch(console.error);
 
         return { success: true, userId: resultado.id };
     } catch (error) {
