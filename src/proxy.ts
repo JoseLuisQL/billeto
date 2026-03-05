@@ -51,6 +51,8 @@ export default async function middleware(req: NextRequest) {
         "/",
         "/login",
         "/register",
+        "/forgot-password",
+        "/reset-password",
         "/product",
         "/pricing",
         "/manifesto",

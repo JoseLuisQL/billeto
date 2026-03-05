@@ -69,6 +69,18 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+/// Token de restablecimiento de contraseña
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
+
 /// Workspace: unidad de aislamiento multi-tenant
 /// Cada workspace agrupa cuentas, transacciones y configuraciones
 model Workspace {

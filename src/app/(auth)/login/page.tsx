@@ -101,14 +101,9 @@ export default function LoginPage() {
                                     <Label htmlFor="password" className="text-xs uppercase tracking-wider text-zinc-500">
                                         Contraseña
                                     </Label>
-                                    <button
-                                        type="button"
-                                        disabled
-                                        className="text-xs text-zinc-600 cursor-not-allowed"
-                                        title="Próximamente"
-                                    >
+                                    <Link href="/forgot-password" className="text-xs text-lime-400 hover:text-lime-300">
                                         ¿Olvidaste tu contraseña?
-                                    </button>
+                                    </Link>
                                 </div>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
