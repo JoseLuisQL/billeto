@@ -11,6 +11,7 @@ import {
     Globe,
 } from "lucide-react";
 import { AdminKPICard } from "@/components/admin/shared/AdminKPICard";
+import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
 import {
     obtenerAnalyticsGlobalesAdmin,
     obtenerDistribucionTransaccionesAdmin,
@@ -21,17 +22,13 @@ import {
 export default async function AdminAnalyticsPage() {
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Analytics Globales</h1>
-                    <p className="mt-1 text-sm text-zinc-500">Métricas de crecimiento y uso de la plataforma</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10">
-                    <BarChart3 className="h-5 w-5 text-indigo-400" />
-                </div>
-            </div>
+            <AdminPageHeader
+                title="Analytics Globales"
+                description="Métricas de crecimiento, adopción y salud de la plataforma."
+                icon={BarChart3}
+            />
 
-            <Suspense fallback={<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[120px] animate-pulse rounded-xl border border-white/[0.06] bg-zinc-900/50" />)}</div>}>
+            <Suspense fallback={<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[118px] animate-pulse rounded-2xl border border-white/10 bg-[#0b1220]/80" />)}</div>}>
                 <KPISection />
             </Suspense>
 
@@ -77,7 +74,7 @@ async function TransactionTypeSection() {
     const totalCount = dist.reduce((s, d) => s + d.count, 0);
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
                 <TrendingUp className="h-4 w-4 text-zinc-500" /> Distribución por Tipo
             </h3>
@@ -117,7 +114,7 @@ async function TopCategoriesSection() {
     const maxCount = cats.length > 0 ? cats[0].count : 1;
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
             <h3 className="mb-4 text-base font-semibold text-zinc-100">Top Categorías</h3>
             <div className="space-y-2.5">
                 {cats.map((c, i) => (
@@ -130,7 +127,7 @@ async function TopCategoriesSection() {
                             </div>
                             <div className="mt-1 h-1.5 rounded-full bg-zinc-800">
                                 <div
-                                    className="h-full rounded-full bg-indigo-500/60 transition-all duration-500"
+                                    className="h-full rounded-full bg-cyan-400/70 transition-all duration-500"
                                     style={{ width: `${(c.count / maxCount) * 100}%` }}
                                 />
                             </div>
@@ -148,7 +145,7 @@ async function TopCountriesSection() {
     const maxCount = countries.length > 0 ? countries[0].count : 1;
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
                 <Globe className="h-4 w-4 text-zinc-500" /> Top Países
             </h3>
@@ -176,5 +173,5 @@ async function TopCountriesSection() {
 }
 
 function CardSkeleton() {
-    return <div className="h-72 animate-pulse rounded-xl border border-white/[0.06] bg-zinc-900/50" />;
+    return <div className="h-72 animate-pulse rounded-2xl border border-white/10 bg-[#0b1220]/80" />;
 }

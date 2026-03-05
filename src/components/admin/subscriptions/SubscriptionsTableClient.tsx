@@ -54,7 +54,7 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.workspaceName,
             cell: (row: AdminSubscriptionRow) => (
-                <Link href={`/admin/workspaces/${row.workspaceId}`} className="font-medium text-zinc-200 hover:text-indigo-400 transition-colors">
+                <Link href={`/admin/workspaces/${row.workspaceId}`} className="font-medium text-zinc-200 hover:text-cyan-400 transition-colors">
                     {row.workspaceName}
                 </Link>
             ),
@@ -80,7 +80,7 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
                 <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.planTier === "premium"
                         ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                         : row.planTier === "pro"
-                            ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
                             : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
                     }`}>
                     {row.planTier}
@@ -178,3 +178,4 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
         </div>
     );
 }
+

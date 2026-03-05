@@ -63,7 +63,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             accessorFn: (row: AdminUserRow) => row.name ?? "",
             cell: (row: AdminUserRow) => (
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-indigo-500/20 bg-indigo-500/10 text-xs font-bold text-indigo-400 overflow-hidden">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-500/20 bg-cyan-500/10 text-xs font-bold text-cyan-400 overflow-hidden">
                         {row.avatar ? (
                             <img src={row.avatar} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -71,7 +71,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
                         )}
                     </div>
                     <div>
-                        <Link href={`/admin/users/${row.id}`} className="font-medium text-zinc-200 hover:text-indigo-400 transition-colors">
+                        <Link href={`/admin/users/${row.id}`} className="font-medium text-zinc-200 hover:text-cyan-400 transition-colors">
                             {row.name || "Sin nombre"}
                         </Link>
                         {row.isAdmin && (
@@ -110,7 +110,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
                 <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.plan === "premium"
                         ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                         : row.plan === "pro"
-                            ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
                             : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
                     }`}>
                     {row.plan}
@@ -228,3 +228,4 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
         </div>
     );
 }
+

@@ -94,92 +94,96 @@ export function AdminDataTable<T extends { id?: string }>({
 
     return (
         <div className="space-y-4">
-            {/* Search */}
             {searchField && (
-                <div className="relative max-w-sm">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                    <input
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setPage(0);
-                        }}
-                        placeholder={searchPlaceholder}
-                        className="w-full rounded-lg border border-white/[0.06] bg-zinc-900/50 py-2 pl-9 pr-8 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition-colors focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20"
-                    />
-                    {search && (
-                        <button
-                            type="button"
-                            onClick={() => setSearch("")}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-500 hover:text-zinc-300"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    )}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative w-full max-w-md">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                        <input
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(0);
+                            }}
+                            placeholder={searchPlaceholder}
+                            className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-9 pr-8 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition-all focus:border-cyan-400/40 focus:bg-white/[0.05] focus:ring-2 focus:ring-cyan-400/20"
+                        />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-500 hover:text-zinc-300"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                        {sorted.length} registro{sorted.length === 1 ? "" : "s"}
+                    </p>
                 </div>
             )}
 
-            {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-white/[0.06] bg-zinc-900/50">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b border-white/5">
-                            {columns.map((col) => (
-                                <th
-                                    key={col.id}
-                                    className={`px-4 py-3 text-left text-xs font-medium text-zinc-500 ${col.className ?? ""}`}
-                                >
-                                    {col.sortable ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleSort(col.id)}
-                                            className="flex items-center gap-1 transition-colors hover:text-zinc-300"
-                                        >
-                                            {col.header}
-                                            {sortCol === col.id ? (
-                                                sortDir === "asc" ? (
-                                                    <ChevronUp className="h-3.5 w-3.5 text-indigo-400" />
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/80 shadow-[0_24px_44px_-32px_rgba(15,23,42,0.85)] backdrop-blur-sm">
+                <div className="overflow-x-auto">
+                    <table className="min-w-[760px] w-full text-sm">
+                        <thead className="bg-white/[0.03]">
+                            <tr className="border-b border-white/10">
+                                {columns.map((col) => (
+                                    <th
+                                        key={col.id}
+                                        className={`px-4 py-3.5 text-left text-[11px] font-semibold tracking-[0.14em] uppercase text-zinc-500 ${col.className ?? ""}`}
+                                    >
+                                        {col.sortable ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort(col.id)}
+                                                className="flex items-center gap-1.5 transition-colors hover:text-zinc-300"
+                                            >
+                                                {col.header}
+                                                {sortCol === col.id ? (
+                                                    sortDir === "asc" ? (
+                                                        <ChevronUp className="h-3.5 w-3.5 text-cyan-200" />
+                                                    ) : (
+                                                        <ChevronDown className="h-3.5 w-3.5 text-cyan-200" />
+                                                    )
                                                 ) : (
-                                                    <ChevronDown className="h-3.5 w-3.5 text-indigo-400" />
-                                                )
-                                            ) : (
-                                                <ChevronsUpDown className="h-3.5 w-3.5 text-zinc-600" />
-                                            )}
-                                        </button>
-                                    ) : (
-                                        col.header
-                                    )}
-                                </th>
-                            ))}
-                            {actions && <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500">Acciones</th>}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {paged.length === 0 ? (
-                            <tr>
-                                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center text-sm text-zinc-500">
-                                    {emptyMessage}
-                                </td>
+                                                    <ChevronsUpDown className="h-3.5 w-3.5 text-zinc-600" />
+                                                )}
+                                            </button>
+                                        ) : (
+                                            col.header
+                                        )}
+                                    </th>
+                                ))}
+                                {actions && <th className="px-4 py-3.5 text-right text-[11px] font-semibold tracking-[0.14em] uppercase text-zinc-500">Acciones</th>}
                             </tr>
-                        ) : (
-                            paged.map((row, i) => (
-                                <tr key={(row as Record<string, unknown>).id as string ?? i} className="transition-colors hover:bg-white/[0.02]">
-                                    {columns.map((col) => (
-                                        <td key={col.id} className={`px-4 py-3 ${col.className ?? ""}`}>
-                                            {col.cell ? col.cell(row) : String(col.accessorFn?.(row) ?? "")}
-                                        </td>
-                                    ))}
-                                    {actions && <td className="px-4 py-3 text-right">{actions(row)}</td>}
+                        </thead>
+                        <tbody className="divide-y divide-white/10">
+                            {paged.length === 0 ? (
+                                <tr>
+                                    <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-14 text-center text-sm text-zinc-500">
+                                        {emptyMessage}
+                                    </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                paged.map((row, i) => (
+                                    <tr key={(row as { id?: string }).id ?? i} className="transition-colors hover:bg-white/[0.04]">
+                                        {columns.map((col) => (
+                                            <td key={col.id} className={`px-4 py-3.5 ${col.className ?? ""}`}>
+                                                {col.cell ? col.cell(row) : String(col.accessorFn?.(row) ?? "")}
+                                            </td>
+                                        ))}
+                                        {actions && <td className="px-4 py-3.5 text-right">{actions(row)}</td>}
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between text-sm text-zinc-500">
+                <div className="flex flex-col gap-3 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>
                         {sorted.length} resultado{sorted.length !== 1 ? "s" : ""} · Página {safeP + 1} de {totalPages}
                     </span>
@@ -209,7 +213,7 @@ function PagBtn({ children, disabled, onClick }: { children: React.ReactNode; di
             type="button"
             disabled={disabled}
             onClick={onClick}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-zinc-900/50 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-30"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-400 transition-colors hover:bg-white/[0.08] hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-30"
         >
             {children}
         </button>

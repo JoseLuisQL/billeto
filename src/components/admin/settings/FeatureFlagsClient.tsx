@@ -78,7 +78,7 @@ export function FeatureFlagsClient({ initialFlags }: { initialFlags: Record<stri
                     type="button"
                     onClick={handleSave}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-cyan-500 disabled:opacity-40"
                 >
                     {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     {saved ? "Guardado" : "Guardar"}
@@ -91,7 +91,7 @@ export function FeatureFlagsClient({ initialFlags }: { initialFlags: Record<stri
                 </div>
             )}
 
-            <div className="divide-y divide-white/5 rounded-xl border border-white/[0.06] bg-zinc-900/50">
+            <div className="divide-y divide-white/5 rounded-2xl border border-white/10 bg-[#0b1220]/80">
                 {Object.entries(flags).map(([key, enabled]) => {
                     const meta = DEFAULT_FLAGS[key];
                     return (
@@ -126,14 +126,14 @@ export function FeatureFlagsClient({ initialFlags }: { initialFlags: Record<stri
                     value={newFlagKey}
                     onChange={(e) => setNewFlagKey(e.target.value)}
                     placeholder="nuevo_flag_key"
-                    className="flex-1 rounded-lg border border-white/[0.06] bg-zinc-950/50 px-3 py-2 text-sm text-zinc-200 font-mono placeholder:text-zinc-600 outline-none focus:border-indigo-500/40"
+                    className="flex-1 rounded-lg border border-white/[0.06] bg-zinc-950/50 px-3 py-2 text-sm text-zinc-200 font-mono placeholder:text-zinc-600 outline-none focus:border-cyan-500/40"
                     onKeyDown={(e) => e.key === "Enter" && addFlag()}
                 />
                 <button
                     type="button"
                     onClick={addFlag}
                     disabled={!newFlagKey.trim()}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-zinc-900/50 px-3 py-2 text-sm text-zinc-400 hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-[#111a2a]/70 px-3 py-2 text-sm text-zinc-400 hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30 transition-colors"
                 >
                     <Plus className="h-4 w-4" /> Agregar flag
                 </button>
@@ -141,3 +141,5 @@ export function FeatureFlagsClient({ initialFlags }: { initialFlags: Record<stri
         </div>
     );
 }
+
+

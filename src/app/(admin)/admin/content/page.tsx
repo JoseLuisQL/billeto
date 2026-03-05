@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FileText, Tags, CreditCard, Target, Globe } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
 
 const contentSections = [
     {
@@ -33,7 +34,7 @@ const contentSections = [
 ];
 
 const colorMap: Record<string, { icon: string; border: string; bg: string }> = {
-    indigo: { icon: "text-indigo-400", border: "border-indigo-500/20", bg: "bg-indigo-500/10" },
+    indigo: { icon: "text-cyan-200", border: "border-cyan-400/30", bg: "bg-cyan-500/12" },
     emerald: { icon: "text-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/10" },
     amber: { icon: "text-amber-400", border: "border-amber-500/20", bg: "bg-amber-500/10" },
     blue: { icon: "text-blue-400", border: "border-blue-500/20", bg: "bg-blue-500/10" },
@@ -42,15 +43,11 @@ const colorMap: Record<string, { icon: string; border: string; bg: string }> = {
 export default function AdminContentPage() {
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Gestión de Contenido</h1>
-                    <p className="mt-1 text-sm text-zinc-500">Administrar contenido predefinido del sistema</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10">
-                    <FileText className="h-5 w-5 text-indigo-400" />
-                </div>
-            </div>
+            <AdminPageHeader
+                title="Gestión de Contenido"
+                description="Catálogos base de la plataforma y plantillas globales."
+                icon={FileText}
+            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {contentSections.map((section) => {
@@ -60,9 +57,9 @@ export default function AdminContentPage() {
                         <Link
                             key={section.href}
                             href={section.href}
-                            className="group relative overflow-hidden rounded-xl border border-white/[0.06] bg-zinc-900/50 p-6 transition-all duration-300 hover:border-white/10 hover:shadow-lg"
+                            className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/80 p-6 shadow-[0_20px_36px_-28px_rgba(15,23,42,0.85)] transition-all duration-300 hover:border-white/20"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                             <div className="relative z-10 flex items-start gap-4">
                                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${c.border} ${c.bg}`}>
                                     <Icon className={`h-6 w-6 ${c.icon}`} />

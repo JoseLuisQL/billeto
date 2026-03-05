@@ -103,7 +103,7 @@ export function TransactionsTableClient({ transactions }: Props) {
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.workspace,
             cell: (row: AdminTransactionRow) => (
-                <Link href={`/admin/workspaces/${row.workspaceId}`} className="text-zinc-400 text-xs hover:text-indigo-400 transition-colors truncate max-w-[120px] block">
+                <Link href={`/admin/workspaces/${row.workspaceId}`} className="text-zinc-400 text-xs hover:text-cyan-400 transition-colors truncate max-w-[120px] block">
                     {row.workspace}
                 </Link>
             ),
@@ -178,3 +178,4 @@ export function TransactionsTableClient({ transactions }: Props) {
         </div>
     );
 }
+

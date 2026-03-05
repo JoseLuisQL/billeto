@@ -39,7 +39,7 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             sortable: true,
             accessorFn: (row: AdminAuditLogRow) => row.action,
             cell: (row: AdminAuditLogRow) => (
-                <span className="inline-flex rounded-md bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-400 font-mono">
+                <span className="inline-flex rounded-md bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-400 font-mono">
                     {row.action}
                 </span>
             ),
@@ -89,3 +89,4 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
         />
     );
 }
+

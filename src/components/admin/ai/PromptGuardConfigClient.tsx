@@ -38,7 +38,7 @@ export function PromptGuardConfigClient({ config }: Props) {
     };
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5 space-y-5">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5 space-y-5">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10">
@@ -53,7 +53,7 @@ export function PromptGuardConfigClient({ config }: Props) {
                     type="button"
                     onClick={handleSave}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-cyan-500 disabled:opacity-40"
                 >
                     {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     {saved ? "Guardado" : "Guardar"}
@@ -94,7 +94,7 @@ export function PromptGuardConfigClient({ config }: Props) {
                             onChange={(e) => setMaxLen(Number(e.target.value))}
                             min={100}
                             max={10000}
-                            className="w-full rounded-lg border border-white/[0.06] bg-zinc-900/50 px-3 py-2 text-sm text-zinc-200 font-mono outline-none focus:border-indigo-500/40"
+                            className="w-full rounded-lg border border-white/[0.06] bg-[#111a2a]/70 px-3 py-2 text-sm text-zinc-200 font-mono outline-none focus:border-cyan-500/40"
                         />
                     </label>
                 </div>
@@ -120,3 +120,5 @@ export function PromptGuardConfigClient({ config }: Props) {
         </div>
     );
 }
+
+

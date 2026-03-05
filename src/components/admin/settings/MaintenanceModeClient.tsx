@@ -45,7 +45,7 @@ export function MaintenanceModeClient({ initialData }: Props) {
         <div className="space-y-5">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border ${data.enabled ? "border-amber-500/30 bg-amber-500/10" : "border-white/[0.06] bg-zinc-900/50"}`}>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border ${data.enabled ? "border-amber-500/30 bg-amber-500/10" : "border-white/[0.06] bg-[#111a2a]/70"}`}>
                         <AlertTriangle className={`h-5 w-5 ${data.enabled ? "text-amber-400" : "text-zinc-500"}`} />
                     </div>
                     <div>
@@ -57,7 +57,7 @@ export function MaintenanceModeClient({ initialData }: Props) {
                     type="button"
                     onClick={handleSave}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-cyan-500 disabled:opacity-40"
                 >
                     {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     {saved ? "Guardado" : "Guardar"}
@@ -77,7 +77,7 @@ export function MaintenanceModeClient({ initialData }: Props) {
                 </div>
             )}
 
-            <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5 space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5 space-y-4">
                 {/* Enable toggle */}
                 <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-zinc-950/30 p-4">
                     <div>
@@ -100,7 +100,7 @@ export function MaintenanceModeClient({ initialData }: Props) {
                         value={data.message}
                         onChange={(e) => update("message", e.target.value)}
                         rows={3}
-                        className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 p-3 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-indigo-500/40 resize-y"
+                        className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 p-3 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-cyan-500/40 resize-y"
                         placeholder="Mensaje que verán los usuarios..."
                     />
                 </div>
@@ -128,7 +128,7 @@ export function MaintenanceModeClient({ initialData }: Props) {
                             type="datetime-local"
                             value={data.estimatedEnd ?? ""}
                             onChange={(e) => update("estimatedEnd", e.target.value || null)}
-                            className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-500/40 [color-scheme:dark]"
+                            className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-cyan-500/40 [color-scheme:dark]"
                         />
                     </div>
                 </div>
@@ -136,3 +136,5 @@ export function MaintenanceModeClient({ initialData }: Props) {
         </div>
     );
 }
+
+

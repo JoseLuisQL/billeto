@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Settings, Flag, Wrench, Database } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
 import { FeatureFlagsClient } from "@/components/admin/settings/FeatureFlagsClient";
 import { MaintenanceModeClient } from "@/components/admin/settings/MaintenanceModeClient";
 import {
@@ -11,31 +12,24 @@ import {
 export default async function AdminSettingsPage() {
     return (
         <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Configuración del Sistema</h1>
-                    <p className="mt-1 text-sm text-zinc-500">Feature flags, modo mantenimiento y configuración general</p>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10">
-                    <Settings className="h-5 w-5 text-indigo-400" />
-                </div>
-            </div>
+            <AdminPageHeader
+                title="Configuración del Sistema"
+                description="Feature flags, mantenimiento y parámetros globales de operación."
+                icon={Settings}
+            />
 
-            {/* Maintenance Mode */}
             <Section icon={Wrench} title="Mantenimiento">
                 <Suspense fallback={<SectionSkeleton />}>
                     <MaintenanceSection />
                 </Suspense>
             </Section>
 
-            {/* Feature Flags */}
             <Section icon={Flag} title="Feature Flags">
                 <Suspense fallback={<SectionSkeleton />}>
                     <FlagsSection />
                 </Suspense>
             </Section>
 
-            {/* System Config Overview */}
             <Section icon={Database} title="Configuración Almacenada">
                 <Suspense fallback={<SectionSkeleton />}>
                     <ConfigSection />
@@ -59,11 +53,11 @@ async function ConfigSection() {
     const configs = await obtenerSystemConfigAdmin();
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80">
             {configs.length === 0 ? (
                 <p className="p-6 text-center text-sm text-zinc-600">No hay configuraciones almacenadas</p>
             ) : (
-                <div className="divide-y divide-white/5">
+                <div className="divide-y divide-white/10">
                     {configs.map((c) => (
                         <div key={c.id} className="px-5 py-4">
                             <div className="flex items-center justify-between mb-1">
@@ -90,16 +84,18 @@ function Section({ icon: Icon, title, children }: {
     children: React.ReactNode;
 }) {
     return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-zinc-500" />
+        <section className="space-y-4">
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-100">
+                    <Icon className="h-4 w-4" />
+                </div>
                 <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
             </div>
             {children}
-        </div>
+        </section>
     );
 }
 
 function SectionSkeleton() {
-    return <div className="h-48 animate-pulse rounded-xl border border-white/[0.06] bg-zinc-900/50" />;
+    return <div className="h-48 animate-pulse rounded-2xl border border-white/10 bg-[#0b1220]/80" />;
 }

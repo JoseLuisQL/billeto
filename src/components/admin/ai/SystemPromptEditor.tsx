@@ -28,7 +28,7 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
     };
 
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-zinc-900/50 p-5 space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5 space-y-4">
             <div className="flex items-center justify-between">
                 <div>
                     <h3 className="text-base font-semibold text-zinc-100">System Prompt</h3>
@@ -41,7 +41,7 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
                     type="button"
                     onClick={handleSave}
                     disabled={pending || prompt === initialPrompt}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-cyan-500 disabled:opacity-40 disabled:pointer-events-none"
                 >
                     {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     {saved ? "Guardado" : pending ? "Guardando..." : "Guardar"}
@@ -58,7 +58,7 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={16}
-                className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 p-4 text-sm leading-relaxed text-zinc-200 font-mono placeholder:text-zinc-600 outline-none transition-colors focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 resize-y"
+                className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 p-4 text-sm leading-relaxed text-zinc-200 font-mono placeholder:text-zinc-600 outline-none transition-colors focus:border-cyan-500/40 focus:ring-1 focus:ring-cyan-500/20 resize-y"
                 placeholder="Escribe el system prompt del asistente de IA aquí..."
             />
 
@@ -72,3 +72,5 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
         </div>
     );
 }
+
+

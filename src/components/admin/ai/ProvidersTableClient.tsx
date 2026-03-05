@@ -39,7 +39,7 @@ export function ProvidersTableClient({ providers }: { providers: AdminProviderRo
         google: "bg-blue-500/10 text-blue-400 border-blue-500/20",
         openai: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
         anthropic: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        openrouter: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+        openrouter: "bg-blue-500/10 text-blue-400 border-blue-500/20",
         custom: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
     };
 

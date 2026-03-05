@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
     BarChart3,
     Bot,
+    Building2,
     ChevronDown,
     CreditCard,
     FileText,
@@ -15,16 +16,9 @@ import {
     MoreVertical,
     Settings,
     Shield,
-    TrendingUp,
-    Users,
-    Building2,
-    Zap,
-    Brain,
-    Key,
-    MessageSquare,
-    Wrench,
-    ShieldAlert,
     Tags,
+    Users,
+    Zap,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { BilletoIcon, BilletoLogo } from "@/components/ui/logo";
@@ -56,50 +50,56 @@ type NavItem = {
     children?: NavItem[];
 };
 
-const adminNavItems: NavItem[] = [
-    { id: "overview", label: "Dashboard", icon: LayoutDashboard, href: "/admin", exact: true },
-    { id: "users", label: "Usuarios", icon: Users, href: "/admin/users" },
-    { id: "workspaces", label: "Workspaces", icon: Building2, href: "/admin/workspaces" },
-    { id: "transactions", label: "Transacciones", icon: Zap, href: "/admin/transactions" },
-    { id: "subscriptions", label: "Suscripciones", icon: CreditCard, href: "/admin/subscriptions" },
-    { id: "audit", label: "Auditoría", icon: FileText, href: "/admin/audit" },
+type NavSection = {
+    id: string;
+    label: string;
+    items: NavItem[];
+};
+
+const adminNavSections: NavSection[] = [
     {
-        id: "analytics",
-        label: "Analytics",
-        icon: BarChart3,
-        children: [
-            { id: "growth", label: "Growth", icon: TrendingUp, href: "/admin/analytics/growth" },
-            { id: "usage", label: "Usage", icon: BarChart3, href: "/admin/analytics/usage" },
-            { id: "financial", label: "Financial", icon: Globe, href: "/admin/analytics/financial" },
-            { id: "ai-analytics", label: "IA", icon: Bot, href: "/admin/analytics/ai" },
+        id: "overview",
+        label: "Visión General",
+        items: [
+            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/admin", exact: true },
+            { id: "analytics", label: "Analytics", icon: BarChart3, href: "/admin/analytics" },
         ],
     },
     {
-        id: "ai",
-        label: "Inteligencia Artificial",
-        icon: Brain,
-        children: [
-            { id: "providers", label: "Proveedores", icon: Key, href: "/admin/ai/providers" },
-            { id: "prompt", label: "System Prompt", icon: MessageSquare, href: "/admin/ai/prompt" },
-            { id: "tools", label: "Tools", icon: Wrench, href: "/admin/ai/tools" },
-            { id: "ai-security", label: "Prompt Guard", icon: ShieldAlert, href: "/admin/ai/security" },
-            { id: "keywords", label: "Keywords", icon: Tags, href: "/admin/ai/keywords" },
+        id: "operations",
+        label: "Operaciones",
+        items: [
+            { id: "users", label: "Usuarios", icon: Users, href: "/admin/users" },
+            { id: "workspaces", label: "Workspaces", icon: Building2, href: "/admin/workspaces" },
+            { id: "transactions", label: "Transacciones", icon: Zap, href: "/admin/transactions" },
+            { id: "subscriptions", label: "Suscripciones", icon: CreditCard, href: "/admin/subscriptions" },
+            { id: "audit", label: "Auditoría", icon: FileText, href: "/admin/audit" },
+            { id: "security", label: "Seguridad", icon: Shield, href: "/admin/security" },
         ],
     },
     {
-        id: "content",
-        label: "Contenido",
-        icon: FileText,
-        children: [
-            { id: "categories", label: "Categorías", icon: Tags, href: "/admin/content/categories" },
-            { id: "popular-subs", label: "Suscripciones", icon: CreditCard, href: "/admin/content/popular-subscriptions" },
-            { id: "goal-templates", label: "Plantillas", icon: FileText, href: "/admin/content/goal-templates" },
-            { id: "currencies", label: "Monedas", icon: Globe, href: "/admin/content/currencies" },
+        id: "platform",
+        label: "Plataforma",
+        items: [
+            { id: "ai", label: "Inteligencia Artificial", icon: Bot, href: "/admin/ai" },
+            {
+                id: "content",
+                label: "Contenido",
+                icon: FileText,
+                href: "/admin/content",
+                children: [
+                    { id: "categories", label: "Categorías", icon: Tags, href: "/admin/content/categories" },
+                    { id: "popular-subscriptions", label: "Suscripciones", icon: CreditCard, href: "/admin/content/popular-subscriptions" },
+                    { id: "goal-templates", label: "Plantillas", icon: FileText, href: "/admin/content/goal-templates" },
+                    { id: "currencies", label: "Monedas", icon: Globe, href: "/admin/content/currencies" },
+                ],
+            },
+            { id: "settings", label: "Configuración", icon: Settings, href: "/admin/settings" },
         ],
     },
-    { id: "settings", label: "Configuración", icon: Settings, href: "/admin/settings" },
-    { id: "security", label: "Seguridad", icon: Shield, href: "/admin/security" },
 ];
+
+const navItems = adminNavSections.flatMap((section) => section.items);
 
 function matchesPath(item: NavItem, pathname: string): boolean {
     if (!item.href) return false;
@@ -116,7 +116,7 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
     const pathname = usePathname();
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
         const state: Record<string, boolean> = {};
-        adminNavItems.forEach((item) => {
+        navItems.forEach((item) => {
             if (item.children?.length) {
                 state[item.id] = item.children.some((child) => isItemActive(child, pathname));
             }
@@ -140,11 +140,10 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
         const hasChildren = Boolean(item.children?.length);
         const isOpen = hasChildren ? getIsOpen(item) : false;
 
+        const itemClass = `${collapsed ? "justify-center px-2.5" : `gap-3 ${level > 0 ? "px-3" : "px-3.5"}`} group relative flex w-full items-center rounded-xl py-2.5 text-sm transition-all duration-200`;
         const activeClass = active
-            ? "bg-indigo-500/10 font-medium text-indigo-400 shadow-[inset_0px_1px_0px_0px_rgba(255,255,255,0.02)]"
-            : "text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-100";
-
-        const itemClass = `${collapsed ? "justify-center px-2" : `gap-3 ${level > 0 ? "px-3" : "px-3"}`} flex items-center rounded-lg py-2 text-sm transition-all duration-200 relative group cursor-pointer`;
+            ? "border border-cyan-400/25 bg-cyan-400/10 text-cyan-100 shadow-[0_12px_32px_-24px_rgba(34,211,238,0.9)]"
+            : "border border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/[0.04] hover:text-zinc-100";
 
         const handleClick = (e: React.MouseEvent) => {
             if (hasChildren && !item.href) {
@@ -157,10 +156,10 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
 
         const content = (
             <>
-                {!collapsed && active && level === 0 && (
-                    <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-md bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                {active && level === 0 && !collapsed && (
+                    <div className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r-full bg-cyan-300" />
                 )}
-                <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? "text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "text-zinc-400 group-hover:text-zinc-300"}`} />
+                <Icon className={`h-[17px] w-[17px] shrink-0 ${active ? "text-cyan-200" : "text-zinc-500 group-hover:text-zinc-300"}`} />
                 {!collapsed && (
                     <>
                         <span className="truncate">{item.label}</span>
@@ -182,20 +181,20 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
         );
 
         return (
-            <div key={`${item.id}-${level}`} className="mb-0.5">
+            <div key={`${item.id}-${level}`} className="mb-1">
                 {item.href ? (
-                    <Link href={item.href} onClick={handleClick} className={`${itemClass} ${activeClass} w-full`}>
+                    <Link href={item.href} onClick={handleClick} className={`${itemClass} ${activeClass}`}>
                         {content}
                     </Link>
                 ) : (
-                    <button type="button" onClick={handleClick} className={`${itemClass} ${activeClass} w-full text-left`}>
+                    <button type="button" onClick={handleClick} className={`${itemClass} ${activeClass} text-left`}>
                         {content}
                     </button>
                 )}
                 {!collapsed && hasChildren && (
-                    <div className={`grid transition-all duration-300 ease-in-out ${isOpen ? "grid-rows-[1fr] opacity-100 mt-0.5" : "grid-rows-[0fr] opacity-0"}`}>
+                    <div className={`grid transition-all duration-300 ease-in-out ${isOpen ? "mt-1 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                         <div className="overflow-hidden">
-                            <div className="ml-5 space-y-0.5 border-l border-white/5 pl-2">
+                            <div className="ml-5 space-y-1 border-l border-white/10 pl-2.5">
                                 {item.children?.map((child) => renderItem(child, level + 1))}
                             </div>
                         </div>
@@ -206,43 +205,49 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
     };
 
     return (
-        <aside className={`flex h-screen flex-col border-r border-white/5 bg-[#09090b] ${className}`}>
-            {/* Header */}
-            <div className={`flex h-[68px] shrink-0 items-center border-b border-white/5 ${collapsed ? "justify-center px-2" : "px-6"}`}>
+        <aside className={`flex h-full flex-col border-r border-white/10 bg-[#070d18]/85 backdrop-blur-xl ${className}`}>
+            <div className={`flex h-[72px] shrink-0 items-center border-b border-white/10 ${collapsed ? "justify-center px-2" : "px-6"}`}>
                 <Link href="/admin" onClick={onNavigate} className="flex items-center gap-3">
                     {collapsed ? (
-                        <BilletoIcon className="size-8 drop-shadow-[0_0_8px_rgba(99,102,241,0.3)]" />
+                        <BilletoIcon className="size-8 text-cyan-300" />
                     ) : (
                         <>
                             <BilletoLogo />
-                            <span className="rounded-md border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase text-indigo-400">
-                                Admin
+                            <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.14em] uppercase text-cyan-100">
+                                Panel
                             </span>
                         </>
                     )}
                 </Link>
             </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 space-y-0.5 overflow-y-auto p-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-800">
-                {adminNavItems.map((item) => renderItem(item))}
+            <nav className="flex-1 overflow-y-auto p-3.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-700/50">
+                {adminNavSections.map((section) => (
+                    <div key={section.id} className="mb-4">
+                        {!collapsed && (
+                            <p className="mb-2 px-3 text-[10px] font-semibold tracking-[0.16em] uppercase text-zinc-500">
+                                {section.label}
+                            </p>
+                        )}
+                        <div>{section.items.map((item) => renderItem(item))}</div>
+                    </div>
+                ))}
             </nav>
 
-            {/* User section */}
-            <div className="border-t border-white/5 p-3">
-                {/* Link back to client dashboard */}
+            <div className="border-t border-white/10 p-3.5">
                 <Link
                     href="/dashboard"
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-100 mb-2"
+                    onClick={onNavigate}
+                    className="mb-2 flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm text-zinc-400 transition-colors hover:border-white/10 hover:bg-white/[0.04] hover:text-zinc-100"
                 >
-                    <LayoutDashboard className="h-[18px] w-[18px]" />
+                    <LayoutDashboard className="h-[17px] w-[17px]" />
                     {!collapsed && "Ir al Dashboard"}
                 </Link>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <button className="flex w-full items-center gap-3 rounded-xl p-2 text-sm text-left transition-all hover:bg-white/5 focus-visible:outline-hidden">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-indigo-500/20 bg-indigo-500/10 text-sm font-bold text-indigo-400">
+                        <button className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2 text-left text-sm transition-all hover:border-white/10 hover:bg-white/[0.04] focus-visible:outline-hidden">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/12 text-sm font-semibold text-cyan-100">
                                 {admin.name?.charAt(0)?.toUpperCase() ?? "A"}
                             </div>
                             {!collapsed && (
@@ -256,24 +261,24 @@ export function AdminSidebar({ admin, collapsed = false, className = "", onNavig
                             )}
                         </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-56 bg-[#18181b] border-white/10 p-1 shadow-2xl rounded-xl">
-                        <DropdownMenuLabel className="font-normal p-2">
+                    <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-56 rounded-xl border-white/10 bg-[#0e1625] p-1 shadow-2xl">
+                        <DropdownMenuLabel className="p-2 font-normal">
                             <p className="text-sm font-medium text-zinc-100">{admin.name}</p>
                             <p className="text-xs text-zinc-400">{admin.email}</p>
                         </DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-white/5" />
-                        <DropdownMenuItem asChild className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300">
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        <DropdownMenuItem asChild className="cursor-pointer gap-3 rounded-lg py-2 text-zinc-300 focus:bg-white/[0.06]">
                             <Link href="/dashboard">
-                                <LayoutDashboard className="h-[18px] w-[18px]" />
+                                <LayoutDashboard className="h-4 w-4" />
                                 <span>Dashboard Cliente</span>
                             </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-white/5" />
+                        <DropdownMenuSeparator className="bg-white/10" />
                         <DropdownMenuItem
-                            className="cursor-pointer gap-3 focus:bg-white/5 text-zinc-300 py-2 rounded-lg"
+                            className="cursor-pointer gap-3 rounded-lg py-2 text-zinc-300 focus:bg-white/[0.06]"
                             onClick={() => signOut({ callbackUrl: "/" })}
                         >
-                            <LogOut className="h-[18px] w-[18px]" />
+                            <LogOut className="h-4 w-4" />
                             <span>Cerrar sesión</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, Search } from "lucide-react";
+import { CalendarDays, Menu, Search } from "lucide-react";
 
 interface AdminHeaderProps {
     onToggleSidebar?: () => void;
@@ -14,16 +14,9 @@ const routeTitles: Record<string, string> = {
     "/admin/transactions": "Transacciones",
     "/admin/subscriptions": "Suscripciones",
     "/admin/audit": "Auditoría",
-    "/admin/analytics/growth": "Analytics — Growth",
-    "/admin/analytics/usage": "Analytics — Usage",
-    "/admin/analytics/financial": "Analytics — Financial",
-    "/admin/analytics/ai": "Analytics — IA",
+    "/admin/analytics": "Analytics Globales",
     "/admin/ai": "Inteligencia Artificial",
-    "/admin/ai/providers": "Proveedores de IA",
-    "/admin/ai/prompt": "System Prompt",
-    "/admin/ai/tools": "Tools del Agente",
-    "/admin/ai/security": "Prompt Guard",
-    "/admin/ai/keywords": "Keywords",
+    "/admin/content": "Gestión de Contenido",
     "/admin/content/categories": "Categorías del Sistema",
     "/admin/content/popular-subscriptions": "Suscripciones Populares",
     "/admin/content/goal-templates": "Plantillas de Metas",
@@ -57,49 +50,53 @@ export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
     const pathname = usePathname();
     const crumbs = getBreadcrumbs(pathname);
     const pageTitle = routeTitles[pathname] || crumbs[crumbs.length - 1]?.label || "Admin";
+    const formattedDate = new Intl.DateTimeFormat("es-PE", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    }).format(new Date());
 
     return (
-        <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center gap-4 border-b border-white/5 bg-[#09090b]/80 px-6 backdrop-blur-xl">
-            {/* Mobile menu toggle */}
-            <button
-                type="button"
-                onClick={onToggleSidebar}
-                className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-100 lg:hidden"
-            >
-                <Menu className="h-5 w-5" />
-            </button>
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#060b14]/75 backdrop-blur-xl">
+            <div className="mx-auto flex h-[72px] w-full max-w-[1400px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+                <button
+                    type="button"
+                    onClick={onToggleSidebar}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-zinc-300 transition-colors hover:bg-white/[0.08] hover:text-zinc-100 lg:hidden"
+                >
+                    <Menu className="h-5 w-5" />
+                </button>
 
-            {/* Breadcrumbs */}
-            <nav className="hidden items-center gap-1.5 text-sm text-zinc-500 sm:flex">
-                {crumbs.map((crumb, i) => (
-                    <span key={crumb.href} className="flex items-center gap-1.5">
-                        {i > 0 && <span className="text-zinc-700">/</span>}
-                        {i === crumbs.length - 1 ? (
-                            <span className="font-medium text-zinc-100">{crumb.label}</span>
-                        ) : (
-                            <span className="text-zinc-500">{crumb.label}</span>
-                        )}
-                    </span>
-                ))}
-            </nav>
+                <nav className="hidden items-center gap-2 text-sm sm:flex">
+                    {crumbs.map((crumb, i) => (
+                        <span key={crumb.href} className="flex items-center gap-2">
+                            {i > 0 && <span className="text-zinc-600">/</span>}
+                            <span className={i === crumbs.length - 1 ? "font-medium text-zinc-100" : "text-zinc-500"}>
+                                {crumb.label}
+                            </span>
+                        </span>
+                    ))}
+                </nav>
 
-            {/* Mobile title */}
-            <h1 className="text-sm font-medium text-zinc-100 sm:hidden">{pageTitle}</h1>
+                <h1 className="text-sm font-medium text-zinc-100 sm:hidden">{pageTitle}</h1>
 
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Search (placeholder) */}
-            <button
-                type="button"
-                className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-1.5 text-sm text-zinc-500 transition-colors hover:border-white/10 hover:text-zinc-300"
-            >
-                <Search className="h-4 w-4" />
-                <span className="hidden sm:inline">Buscar...</span>
-                <kbd className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 sm:inline">
-                    ⌘K
-                </kbd>
-            </button>
+                <div className="ml-auto flex items-center gap-2">
+                    <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-400 xl:flex">
+                        <CalendarDays className="h-3.5 w-3.5 text-cyan-200" />
+                        {formattedDate}
+                    </div>
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-white/[0.08] hover:text-zinc-200"
+                    >
+                        <Search className="h-4 w-4" />
+                        <span className="hidden sm:inline">Buscar...</span>
+                        <kbd className="hidden rounded border border-white/10 bg-[#111a2a] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 sm:inline">
+                            ⌘K
+                        </kbd>
+                    </button>
+                </div>
+            </div>
         </header>
     );
 }
