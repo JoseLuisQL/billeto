@@ -80,13 +80,13 @@ export async function registrarUsuario(formData: FormData) {
             return { error: "Las contraseñas no coinciden." };
         }
 
-        // Verificar si el email ya existe — mensaje genérico para evitar enumeración
+        // Verificar si el email ya existe
         const usuarioExistente = await prisma.user.findUnique({
             where: { email },
         });
 
         if (usuarioExistente) {
-            return { error: "No se pudo crear la cuenta. Verificá los datos e intentá de nuevo." };
+            return { error: "Ya existe una cuenta con este email. Intentá iniciar sesión o usá otro email." };
         }
 
         // Hashear la contraseña con bcrypt (12 rondas de salt)
