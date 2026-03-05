@@ -1,10 +1,20 @@
 "use server";
 
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = process.env.RESEND_API_KEY
-    ? new Resend(process.env.RESEND_API_KEY)
-    : null;
+/**
+ * Transporter SMTP configurado con Hostinger.
+ * Host: smtp.hostinger.com, Port: 465, SSL
+ */
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.hostinger.com",
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: true, // SSL
+    auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+    },
+});
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "Billeto <noreply@billeto.app>";
 
@@ -14,14 +24,14 @@ const FROM_EMAIL = process.env.EMAIL_FROM || "Billeto <noreply@billeto.app>";
 export async function sendPasswordResetEmail(email: string, token: string) {
     const resetUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/reset-password?token=${token}`;
 
-    // Si no hay API key configurada (desarrollo), loguear URL y retornar éxito
-    if (!resend) {
-        console.warn("[EMAIL] No RESEND_API_KEY configured. Reset URL:", resetUrl);
+    // Si no hay credenciales SMTP configuradas (desarrollo), loguear URL
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.warn("[EMAIL] No SMTP credentials configured. Reset URL:", resetUrl);
         return { success: true };
     }
 
     try {
-        await resend.emails.send({
+        await transporter.sendMail({
             from: FROM_EMAIL,
             to: email,
             subject: "Restablecé tu contraseña — Billeto",
@@ -93,13 +103,13 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 export async function sendEmailVerificationEmail(email: string, token: string) {
     const verifyUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/verify-email?token=${token}`;
 
-    if (!resend) {
-        console.warn("[EMAIL] No RESEND_API_KEY configured. Verify URL:", verifyUrl);
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.warn("[EMAIL] No SMTP credentials configured. Verify URL:", verifyUrl);
         return { success: true };
     }
 
     try {
-        await resend.emails.send({
+        await transporter.sendMail({
             from: FROM_EMAIL,
             to: email,
             subject: "Verificá tu email — Billeto",
