@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Check, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { registrarUsuario } from "@/lib/actions/auth";
-import { useToast } from "@/components/ui/toast";
+import { signIn as nextAuthSignIn } from "next-auth/react";
 
 import { BilletoLogo } from "@/components/ui/logo";
 
@@ -18,24 +18,54 @@ import { BilletoLogo } from "@/components/ui/logo";
  * Página de Registro con integración real de server actions.
  * Crea usuario + workspace + categorías + cuenta por defecto.
  */
+
+type PasswordCheck = {
+    label: string;
+    test: (pw: string) => boolean;
+};
+
+const PASSWORD_CHECKS: PasswordCheck[] = [
+    { label: "Mínimo 8 caracteres", test: (pw) => pw.length >= 8 },
+    { label: "Una mayúscula", test: (pw) => /[A-Z]/.test(pw) },
+    { label: "Una minúscula", test: (pw) => /[a-z]/.test(pw) },
+    { label: "Un número", test: (pw) => /[0-9]/.test(pw) },
+];
+
 export default function RegisterPage() {
     const router = useRouter();
-    const { toast } = useToast();
     const [mostrarPassword, setMostrarPassword] = useState(false);
+    const [mostrarConfirm, setMostrarConfirm] = useState(false);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showChecks, setShowChecks] = useState(false);
+
+    const allChecksPassed = PASSWORD_CHECKS.every((c) => c.test(password));
+    const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setCargando(true);
         setError(null);
 
+        if (!allChecksPassed) {
+            setError("La contraseña no cumple los requisitos mínimos.");
+            setCargando(false);
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            setError("Las contraseñas no coinciden.");
+            setCargando(false);
+            return;
+        }
+
         const formData = new FormData(e.currentTarget);
         const resultado = await registrarUsuario(formData);
 
         if (resultado.error) {
             setError(resultado.error);
-            toast({ title: "No se pudo registrar", description: resultado.error, variant: "error" });
             setCargando(false);
         } else {
             // Redirigir al onboarding después del registro exitoso
@@ -85,6 +115,7 @@ export default function RegisterPage() {
                                         name="name"
                                         type="text"
                                         placeholder="Tu nombre"
+                                        maxLength={100}
                                         className="pl-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
                                         required
                                     />
@@ -124,6 +155,9 @@ export default function RegisterPage() {
                                         className="pl-10 pr-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20"
                                         required
                                         minLength={8}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onFocus={() => setShowChecks(true)}
                                     />
                                     <button
                                         type="button"
@@ -133,11 +167,74 @@ export default function RegisterPage() {
                                         {mostrarPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
+
+                                {/* Password strength indicator */}
+                                {showChecks && password.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        className="space-y-1 pt-1"
+                                    >
+                                        {PASSWORD_CHECKS.map((check) => {
+                                            const passed = check.test(password);
+                                            return (
+                                                <div
+                                                    key={check.label}
+                                                    className={`flex items-center gap-2 text-xs transition-colors ${passed ? "text-lime-400" : "text-zinc-500"
+                                                        }`}
+                                                >
+                                                    {passed ? (
+                                                        <Check className="w-3 h-3" />
+                                                    ) : (
+                                                        <X className="w-3 h-3" />
+                                                    )}
+                                                    {check.label}
+                                                </div>
+                                            );
+                                        })}
+                                    </motion.div>
+                                )}
+                            </div>
+
+                            {/* Campo Confirmar Password */}
+                            <div className="space-y-2">
+                                <Label htmlFor="confirmPassword" className="text-xs uppercase tracking-wider text-zinc-500">
+                                    Confirmar contraseña
+                                </Label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                                    <Input
+                                        id="confirmPassword"
+                                        name="confirmPassword"
+                                        type={mostrarConfirm ? "text" : "password"}
+                                        placeholder="Repetí tu contraseña"
+                                        className={`pl-10 pr-10 bg-zinc-900/50 border-zinc-800 focus:border-lime-400 focus:ring-lime-400/20 ${confirmPassword.length > 0
+                                            ? passwordsMatch
+                                                ? "border-lime-400/50"
+                                                : "border-red-500/50"
+                                            : ""
+                                            }`}
+                                        required
+                                        minLength={8}
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarConfirm(!mostrarConfirm)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                                    >
+                                        {mostrarConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                {confirmPassword.length > 0 && !passwordsMatch && (
+                                    <p className="text-xs text-red-400">Las contraseñas no coinciden</p>
+                                )}
                             </div>
 
                             <Button
                                 type="submit"
-                                disabled={cargando}
+                                disabled={cargando || !allChecksPassed || !passwordsMatch}
                                 className="w-full bg-[#D3FF0A] text-black font-semibold hover:bg-[#c5f000] hover:shadow-[0_0_20px_rgba(211,255,10,0.2)] transition-all disabled:opacity-50"
                             >
                                 {cargando ? "Creando cuenta..." : "Crear cuenta gratis"}
@@ -167,11 +264,11 @@ export default function RegisterPage() {
                         </div>
 
                         {/* Social Auth */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             <Button
                                 variant="outline"
                                 className="bg-transparent border-white/10 hover:bg-white/5 text-white"
-                                onClick={() => {/* signIn('google') */ }}
+                                onClick={() => nextAuthSignIn('google', { callbackUrl: '/onboarding' })}
                             >
                                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -179,16 +276,7 @@ export default function RegisterPage() {
                                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                                 </svg>
-                                Google
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="bg-transparent border-white/10 hover:bg-white/5 text-white"
-                            >
-                                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                                </svg>
-                                Apple
+                                Continuar con Google
                             </Button>
                         </div>
 

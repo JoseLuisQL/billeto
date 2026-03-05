@@ -15,6 +15,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     adapter: PrismaAdapter(prisma),
     session: {
         strategy: "jwt",
+        maxAge: 7 * 24 * 60 * 60, // 7 días
+        updateAge: 24 * 60 * 60,  // Renovar token cada 24h
     },
     pages: {
         signIn: "/login",
@@ -45,6 +47,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 // Si no existe o no tiene password (registrado con OAuth)
                 if (!user || !user.passwordHash) {
                     return null;
+                }
+
+                // Verificar si la cuenta está programada para eliminación
+                if (user.scheduledForDeletionAt) {
+                    throw new Error("ACCOUNT_SCHEDULED_FOR_DELETION");
                 }
 
                 // Verificar contraseña
