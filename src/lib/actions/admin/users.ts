@@ -24,6 +24,7 @@ export async function listarUsuariosAdmin() {
             updatedAt: true,
             memberships: {
                 take: 1,
+                orderBy: { createdAt: "desc" },
                 include: {
                     workspace: {
                         include: { subscription: { select: { planTier: true } } },

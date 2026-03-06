@@ -1,7 +1,13 @@
 "use server";
 
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/security/admin-access";
+
+const promptGuardConfigSchema = z.object({
+    enabled: z.boolean(),
+    maxMessageLength: z.coerce.number().int().min(100).max(10000),
+});
 
 // ─── AI Provider Config ───
 
@@ -15,7 +21,6 @@ export async function listarProveedoresIAAdmin() {
         providerType: p.providerType,
         isActive: p.isActive,
         isDefault: p.isDefault,
-        apiKey: p.apiKey ? `${p.apiKey.slice(0, 8)}${"•".repeat(20)}` : null,
         hasApiKey: !!p.apiKey,
         baseUrl: p.baseUrl,
         modelId: p.modelId,
@@ -161,11 +166,12 @@ export async function obtenerPromptGuardConfigAdmin() {
 
 export async function guardarPromptGuardConfigAdmin(data: { enabled: boolean; maxMessageLength: number }) {
     const admin = await requireAdmin();
+    const validated = promptGuardConfigSchema.parse(data);
 
     await prisma.systemConfig.upsert({
         where: { key: "prompt_guard_config" },
-        update: { value: data },
-        create: { key: "prompt_guard_config", value: data },
+        update: { value: validated },
+        create: { key: "prompt_guard_config", value: validated },
     });
 
     await prisma.auditLog.create({

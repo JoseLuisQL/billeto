@@ -1,7 +1,9 @@
 "use client";
 
 import { AdminDataTable } from "@/components/admin/shared/AdminDataTable";
+import { getAdminBadgeClasses } from "@/components/admin/shared/admin-ui";
 import type { AdminAuditLogRow } from "@/lib/actions/admin/audit";
+import { summarizeAdminPreview } from "@/lib/admin-redaction";
 
 export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
     const columns = [
@@ -11,7 +13,7 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             sortable: true,
             accessorFn: (row: AdminAuditLogRow) => row.createdAt,
             cell: (row: AdminAuditLogRow) => (
-                <span className="text-zinc-500 text-xs whitespace-nowrap font-mono">
+                <span className="text-xs whitespace-nowrap font-mono text-[color:var(--admin-text-subtle)]">
                     {new Date(row.createdAt).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                 </span>
             ),
@@ -23,11 +25,8 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             accessorFn: (row: AdminAuditLogRow) => row.actorName,
             cell: (row: AdminAuditLogRow) => (
                 <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-200 text-sm">{row.actorName}</span>
-                    <span className={`rounded px-1.5 py-0 text-[10px] font-semibold uppercase ${row.actorType === "admin"
-                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                            : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
-                        }`}>
+                    <span className="text-sm font-medium text-[color:var(--admin-text)]">{row.actorName}</span>
+                    <span className={getAdminBadgeClasses(row.actorType === "admin" ? "warning" : "neutral")}>
                         {row.actorType}
                     </span>
                 </div>
@@ -39,7 +38,7 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             sortable: true,
             accessorFn: (row: AdminAuditLogRow) => row.action,
             cell: (row: AdminAuditLogRow) => (
-                <span className="inline-flex rounded-md bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-400 font-mono">
+                <span className={`${getAdminBadgeClasses("accent")} font-mono`}>
                     {row.action}
                 </span>
             ),
@@ -51,8 +50,8 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             accessorFn: (row: AdminAuditLogRow) => row.entity,
             cell: (row: AdminAuditLogRow) => (
                 <div>
-                    <span className="text-sm text-zinc-300">{row.entity}</span>
-                    {row.entityId && <span className="ml-1 text-xs text-zinc-600 font-mono">{row.entityId.slice(0, 8)}…</span>}
+                    <span className="text-sm text-[color:var(--admin-text-muted)]">{row.entity}</span>
+                    {row.entityId && <span className="ml-1 font-mono text-xs text-[color:var(--admin-text-subtle)]">{row.entityId.slice(0, 8)}…</span>}
                 </div>
             ),
         },
@@ -61,17 +60,17 @@ export function AuditTableClient({ logs }: { logs: AdminAuditLogRow[] }) {
             header: "Workspace",
             sortable: true,
             accessorFn: (row: AdminAuditLogRow) => row.workspaceName ?? "",
-            cell: (row: AdminAuditLogRow) => <span className="text-zinc-500 text-xs">{row.workspaceName ?? "—"}</span>,
+            cell: (row: AdminAuditLogRow) => <span className="text-xs text-[color:var(--admin-text-subtle)]">{row.workspaceName ?? "—"}</span>,
         },
         {
             id: "changes",
             header: "Cambios",
             cell: (row: AdminAuditLogRow) => {
-                if (!row.before && !row.after) return <span className="text-zinc-600 text-xs">—</span>;
+                if (!row.before && !row.after) return <span className="text-xs text-[color:var(--admin-text-subtle)]">—</span>;
                 return (
-                    <div className="max-w-[200px] truncate text-xs text-zinc-500 font-mono">
-                        {row.before && <span className="text-rose-400/60">-{JSON.stringify(row.before).slice(0, 50)}</span>}
-                        {row.after && <span className="text-emerald-400/60 ml-1">+{JSON.stringify(row.after).slice(0, 50)}</span>}
+                    <div className="max-w-[240px] text-xs font-mono text-[color:var(--admin-text-subtle)]">
+                        {row.before && <span className="block truncate">Antes: {summarizeAdminPreview(row.before)}</span>}
+                        {row.after && <span className="mt-1 block truncate">Después: {summarizeAdminPreview(row.after)}</span>}
                     </div>
                 );
             },

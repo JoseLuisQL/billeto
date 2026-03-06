@@ -19,6 +19,13 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminDataTable } from "@/components/admin/shared/AdminDataTable";
+import {
+    getAdminBadgeClasses,
+    getPlanLabel,
+    getPlanTone,
+    getSubscriptionStatusLabel,
+    getSubscriptionStatusTone,
+} from "@/components/admin/shared/admin-ui";
 import type { AdminSubscriptionRow } from "@/lib/actions/admin/subscriptions";
 import {
     cambiarPlanAdmin,
@@ -35,7 +42,10 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
     const [pending, startTransition] = useTransition();
     const [actionError, setActionError] = useState<string | null>(null);
 
-    const runAction = (fn: () => Promise<unknown>) => {
+    const runAction = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setActionError(null);
         startTransition(async () => {
             try {
@@ -54,7 +64,7 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.workspaceName,
             cell: (row: AdminSubscriptionRow) => (
-                <Link href={`/admin/workspaces/${row.workspaceId}`} className="font-medium text-zinc-200 hover:text-cyan-400 transition-colors">
+                <Link href={`/admin/workspaces/${row.workspaceId}`} className="font-medium text-[color:var(--admin-text)] transition-colors hover:text-[color:var(--admin-accent-strong)]">
                     {row.workspaceName}
                 </Link>
             ),
@@ -66,8 +76,8 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             accessorFn: (row: AdminSubscriptionRow) => row.ownerName,
             cell: (row: AdminSubscriptionRow) => (
                 <div>
-                    <p className="text-sm text-zinc-300">{row.ownerName}</p>
-                    <p className="text-xs text-zinc-500 truncate max-w-[160px]">{row.ownerEmail}</p>
+                    <p className="text-sm text-[color:var(--admin-text-muted)]">{row.ownerName}</p>
+                    <p className="max-w-[160px] truncate text-xs text-[color:var(--admin-text-subtle)]">{row.ownerEmail}</p>
                 </div>
             ),
         },
@@ -77,13 +87,8 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.planTier,
             cell: (row: AdminSubscriptionRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.planTier === "premium"
-                        ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        : row.planTier === "pro"
-                            ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                            : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
-                    }`}>
-                    {row.planTier}
+                <span className={getAdminBadgeClasses(getPlanTone(row.planTier))}>
+                    {getPlanLabel(row.planTier)}
                 </span>
             ),
         },
@@ -93,22 +98,17 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.status,
             cell: (row: AdminSubscriptionRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.status === "active"
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                        : row.status === "cancelled"
-                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                    }`}>
-                    {row.status}
+                <span className={getAdminBadgeClasses(getSubscriptionStatusTone(row.status))}>
+                    {getSubscriptionStatusLabel(row.status)}
                 </span>
             ),
         },
         {
             id: "provider",
-            header: "Provider",
+            header: "Proveedor",
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.paymentProvider ?? "—",
-            cell: (row: AdminSubscriptionRow) => <span className="text-zinc-500 text-xs">{row.paymentProvider ?? "Sin provider"}</span>,
+            cell: (row: AdminSubscriptionRow) => <span className="text-xs text-[color:var(--admin-text-subtle)]">{row.paymentProvider ?? "Sin proveedor"}</span>,
         },
         {
             id: "createdAt",
@@ -116,7 +116,7 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
             sortable: true,
             accessorFn: (row: AdminSubscriptionRow) => row.createdAt,
             cell: (row: AdminSubscriptionRow) => (
-                <span className="text-zinc-500 text-xs whitespace-nowrap">
+                <span className="text-xs whitespace-nowrap text-[color:var(--admin-text-subtle)]">
                     {new Date(row.createdAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}
                 </span>
             ),
@@ -126,10 +126,10 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
     return (
         <div>
             {actionError && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400">
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:var(--admin-danger-soft)] bg-[color:var(--admin-danger-soft)] px-4 py-2.5 text-sm text-[color:var(--admin-danger)]">
                     <XCircle className="h-4 w-4 shrink-0" />
                     {actionError}
-                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-rose-400/60 hover:text-rose-400">
+                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-[color:var(--admin-danger)]/70 transition-colors hover:text-[color:var(--admin-danger)]">
                         <XCircle className="h-3.5 w-3.5" />
                     </button>
                 </div>
@@ -145,29 +145,29 @@ export function SubscriptionsTableClient({ subscriptions }: Props) {
                 actions={(row) => (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button type="button" disabled={pending} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50">
+                            <button type="button" disabled={pending} aria-label={`Abrir acciones para ${row.workspaceName}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--admin-text-subtle)] transition-colors hover:bg-white/5 hover:text-[color:var(--admin-text)] disabled:opacity-50">
                                 <MoreHorizontal className="h-4 w-4" />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={5} className="w-48 bg-[#18181b] border-white/10 p-1 rounded-xl shadow-2xl">
                             {/* Upgrade/Downgrade */}
                             {row.planTier !== "premium" && (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => runAction(() => cambiarPlanAdmin(row.id, row.planTier === "free" ? "pro" : "premium"))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => runAction(() => cambiarPlanAdmin(row.id, row.planTier === "free" ? "pro" : "premium"), `¿Cambiar el plan de ${row.workspaceName} a ${row.planTier === "free" ? "Pro" : "Premium"}?`)}>
                                     <ArrowUpCircle className="h-4 w-4" /> Upgrade a {row.planTier === "free" ? "Pro" : "Premium"}
                                 </DropdownMenuItem>
                             )}
                             {row.planTier !== "free" && (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => cambiarPlanAdmin(row.id, row.planTier === "premium" ? "pro" : "free"))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => cambiarPlanAdmin(row.id, row.planTier === "premium" ? "pro" : "free"), `¿Cambiar el plan de ${row.workspaceName} a ${row.planTier === "premium" ? "Pro" : "Free"}?`)}>
                                     <ArrowDownCircle className="h-4 w-4" /> Downgrade a {row.planTier === "premium" ? "Pro" : "Free"}
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator className="bg-white/5" />
                             {row.status === "active" ? (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => cancelarSuscripcionAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => cancelarSuscripcionAdmin(row.id), `¿Cancelar la suscripción de ${row.workspaceName}?`)}>
                                     <Ban className="h-4 w-4" /> Cancelar
                                 </DropdownMenuItem>
                             ) : (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => runAction(() => reactivarSuscripcionAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => runAction(() => reactivarSuscripcionAdmin(row.id), `¿Reactivar la suscripción de ${row.workspaceName}?`)}>
                                     <RotateCcw className="h-4 w-4" /> Reactivar
                                 </DropdownMenuItem>
                             )}

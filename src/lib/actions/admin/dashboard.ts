@@ -26,7 +26,7 @@ export async function obtenerKPIsAdmin() {
         prisma.user.count(),
         prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
         prisma.workspace.count({ where: { deletedAt: null } }),
-        prisma.transaction.count({ where: { createdAt: { gte: todayStart }, deletedAt: null } }),
+        prisma.transaction.count({ where: { date: { gte: todayStart }, deletedAt: null } }),
         prisma.subscription.groupBy({
             by: ["planTier"],
             _count: { id: true },
@@ -108,6 +108,7 @@ export async function obtenerUltimosUsuarios(limit: number = 10) {
             emailVerified: true,
             memberships: {
                 take: 1,
+                orderBy: { createdAt: "desc" },
                 include: {
                     workspace: {
                         include: { subscription: { select: { planTier: true } } },

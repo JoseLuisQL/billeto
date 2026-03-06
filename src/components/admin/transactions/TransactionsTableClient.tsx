@@ -16,6 +16,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminDataTable } from "@/components/admin/shared/AdminDataTable";
+import {
+    getAdminBadgeClasses,
+    getTransactionTypeLabel,
+    getTransactionTypeTone,
+} from "@/components/admin/shared/admin-ui";
 import type { AdminTransactionRow } from "@/lib/actions/admin/transactions";
 import {
     eliminarTransaccionAdmin,
@@ -31,7 +36,10 @@ export function TransactionsTableClient({ transactions }: Props) {
     const [pending, startTransition] = useTransition();
     const [actionError, setActionError] = useState<string | null>(null);
 
-    const runAction = (fn: () => Promise<unknown>) => {
+    const runAction = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setActionError(null);
         startTransition(async () => {
             try {
@@ -50,7 +58,7 @@ export function TransactionsTableClient({ transactions }: Props) {
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.date,
             cell: (row: AdminTransactionRow) => (
-                <span className="text-zinc-400 text-xs whitespace-nowrap">
+                <span className="text-xs whitespace-nowrap text-[color:var(--admin-text-subtle)]">
                     {new Date(row.date).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}
                 </span>
             ),
@@ -62,8 +70,8 @@ export function TransactionsTableClient({ transactions }: Props) {
             accessorFn: (row: AdminTransactionRow) => row.description,
             cell: (row: AdminTransactionRow) => (
                 <div>
-                    <p className="text-sm font-medium text-zinc-200 truncate max-w-[200px]">{row.description}</p>
-                    <p className="text-xs text-zinc-500">{row.category}</p>
+                    <p className="max-w-[200px] truncate text-sm font-medium text-[color:var(--admin-text)]">{row.description}</p>
+                    <p className="text-xs text-[color:var(--admin-text-subtle)]">{row.category}</p>
                 </div>
             ),
         },
@@ -74,10 +82,10 @@ export function TransactionsTableClient({ transactions }: Props) {
             accessorFn: (row: AdminTransactionRow) => row.amountBase,
             cell: (row: AdminTransactionRow) => (
                 <div>
-                    <span className={`font-mono font-medium ${row.type === "income" ? "text-emerald-400" : row.type === "expense" ? "text-rose-400" : "text-blue-400"}`}>
+                    <span className={`font-mono font-medium ${row.type === "income" ? "text-[color:var(--admin-success)]" : row.type === "expense" ? "text-[color:var(--admin-danger)]" : "text-[color:var(--admin-info)]"}`}>
                         {row.type === "income" ? "+" : row.type === "expense" ? "-" : "↔"}{row.amount.toFixed(2)}
                     </span>
-                    <span className="ml-1 text-xs text-zinc-500">{row.currency}</span>
+                    <span className="ml-1 text-xs text-[color:var(--admin-text-subtle)]">{row.currency}</span>
                 </div>
             ),
         },
@@ -87,13 +95,8 @@ export function TransactionsTableClient({ transactions }: Props) {
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.type,
             cell: (row: AdminTransactionRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.type === "income"
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                        : row.type === "expense"
-                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                            : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                    }`}>
-                    {row.type}
+                <span className={getAdminBadgeClasses(getTransactionTypeTone(row.type))}>
+                    {getTransactionTypeLabel(row.type)}
                 </span>
             ),
         },
@@ -103,7 +106,7 @@ export function TransactionsTableClient({ transactions }: Props) {
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.workspace,
             cell: (row: AdminTransactionRow) => (
-                <Link href={`/admin/workspaces/${row.workspaceId}`} className="text-zinc-400 text-xs hover:text-cyan-400 transition-colors truncate max-w-[120px] block">
+                <Link href={`/admin/workspaces/${row.workspaceId}`} className="block max-w-[120px] truncate text-xs text-[color:var(--admin-text-muted)] transition-colors hover:text-[color:var(--admin-accent-strong)]">
                     {row.workspace}
                 </Link>
             ),
@@ -113,7 +116,7 @@ export function TransactionsTableClient({ transactions }: Props) {
             header: "Cuenta",
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.account,
-            cell: (row: AdminTransactionRow) => <span className="text-zinc-400 text-xs">{row.account}</span>,
+            cell: (row: AdminTransactionRow) => <span className="text-xs text-[color:var(--admin-text-muted)]">{row.account}</span>,
         },
         {
             id: "status",
@@ -121,11 +124,8 @@ export function TransactionsTableClient({ transactions }: Props) {
             sortable: true,
             accessorFn: (row: AdminTransactionRow) => row.deletedAt ? "eliminada" : "activa",
             cell: (row: AdminTransactionRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.deletedAt
-                        ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    }`}>
-                    {row.deletedAt ? "eliminada" : "activa"}
+                <span className={getAdminBadgeClasses(row.deletedAt ? "danger" : "success")}>
+                    {row.deletedAt ? "Eliminada" : "Activa"}
                 </span>
             ),
         },
@@ -134,10 +134,10 @@ export function TransactionsTableClient({ transactions }: Props) {
     return (
         <div>
             {actionError && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400">
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:var(--admin-danger-soft)] bg-[color:var(--admin-danger-soft)] px-4 py-2.5 text-sm text-[color:var(--admin-danger)]">
                     <XCircle className="h-4 w-4 shrink-0" />
                     {actionError}
-                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-rose-400/60 hover:text-rose-400">
+                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-[color:var(--admin-danger)]/70 transition-colors hover:text-[color:var(--admin-danger)]">
                         <XCircle className="h-3.5 w-3.5" />
                     </button>
                 </div>
@@ -156,18 +156,19 @@ export function TransactionsTableClient({ transactions }: Props) {
                             <button
                                 type="button"
                                 disabled={pending}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50"
+                                aria-label={`Abrir acciones para transacción ${row.description}`}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--admin-text-subtle)] transition-colors hover:bg-white/5 hover:text-[color:var(--admin-text)] disabled:opacity-50"
                             >
                                 <MoreHorizontal className="h-4 w-4" />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={5} className="w-44 bg-[#18181b] border-white/10 p-1 rounded-xl shadow-2xl">
                             {row.deletedAt ? (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => runAction(() => restaurarTransaccionAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => runAction(() => restaurarTransaccionAdmin(row.id), `¿Restaurar la transacción "${row.description}"?`)}>
                                     <RotateCcw className="h-4 w-4" /> Restaurar
                                 </DropdownMenuItem>
                             ) : (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => eliminarTransaccionAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => eliminarTransaccionAdmin(row.id), `¿Marcar como eliminada la transacción "${row.description}"?`)}>
                                     <Trash2 className="h-4 w-4" /> Eliminar
                                 </DropdownMenuItem>
                             )}

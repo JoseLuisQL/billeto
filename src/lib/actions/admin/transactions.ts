@@ -100,8 +100,8 @@ export async function obtenerEstadisticasTransaccionesAdmin() {
 
     const [total, today, thisWeek, deleted] = await Promise.all([
         prisma.transaction.count({ where: { deletedAt: null } }),
-        prisma.transaction.count({ where: { deletedAt: null, createdAt: { gte: todayStart } } }),
-        prisma.transaction.count({ where: { deletedAt: null, createdAt: { gte: weekStart } } }),
+        prisma.transaction.count({ where: { deletedAt: null, date: { gte: todayStart } } }),
+        prisma.transaction.count({ where: { deletedAt: null, date: { gte: weekStart } } }),
         prisma.transaction.count({ where: { deletedAt: { not: null } } }),
     ]);
 

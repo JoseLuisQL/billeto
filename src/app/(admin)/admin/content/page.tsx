@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { FileText, Tags, CreditCard, Target, Globe } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
+import {
+    adminLinkClass,
+    adminPanelClass,
+    getAdminIconBadgeClasses,
+    type AdminTone,
+} from "@/components/admin/shared/admin-ui";
 
 const contentSections = [
     {
@@ -33,11 +39,11 @@ const contentSections = [
     },
 ];
 
-const colorMap: Record<string, { icon: string; border: string; bg: string }> = {
-    indigo: { icon: "text-cyan-200", border: "border-cyan-400/30", bg: "bg-cyan-500/12" },
-    emerald: { icon: "text-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/10" },
-    amber: { icon: "text-amber-400", border: "border-amber-500/20", bg: "bg-amber-500/10" },
-    blue: { icon: "text-blue-400", border: "border-blue-500/20", bg: "bg-blue-500/10" },
+const colorMap: Record<string, AdminTone> = {
+    indigo: "accent",
+    emerald: "success",
+    amber: "warning",
+    blue: "info",
 };
 
 export default function AdminContentPage() {
@@ -57,16 +63,16 @@ export default function AdminContentPage() {
                         <Link
                             key={section.href}
                             href={section.href}
-                            className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/80 p-6 shadow-[0_20px_36px_-28px_rgba(15,23,42,0.85)] transition-all duration-300 hover:border-white/20"
+                            className={`${adminPanelClass} group relative overflow-hidden p-6 transition-all duration-300 hover:border-[color:var(--admin-border-strong)]`}
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                             <div className="relative z-10 flex items-start gap-4">
-                                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${c.border} ${c.bg}`}>
-                                    <Icon className={`h-6 w-6 ${c.icon}`} />
+                                <div className={`${getAdminIconBadgeClasses(c)} h-12 w-12`}>
+                                    <Icon className="h-6 w-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-semibold text-zinc-100 group-hover:text-white transition-colors">{section.title}</h3>
-                                    <p className="mt-1 text-sm text-zinc-500">{section.description}</p>
+                                    <h3 className="text-base font-semibold text-[color:var(--admin-text)] transition-colors group-hover:text-white">{section.title}</h3>
+                                    <p className="mt-1 text-sm text-[color:var(--admin-text-muted)]">{section.description}</p>
+                                    <span className={`mt-3 inline-flex text-xs font-medium ${adminLinkClass}`}>Abrir módulo</span>
                                 </div>
                             </div>
                         </Link>

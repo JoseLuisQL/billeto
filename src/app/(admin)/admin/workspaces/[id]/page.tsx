@@ -12,6 +12,10 @@ import {
     Tags,
 } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
+import {
+    adminPanelClass,
+    getAdminBadgeClasses,
+} from "@/components/admin/shared/admin-ui";
 import { obtenerDetalleWorkspaceAdmin } from "@/lib/actions/admin/workspaces";
 
 export default async function AdminWorkspaceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,15 +47,15 @@ export default async function AdminWorkspaceDetailPage({ params }: { params: Pro
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
-                        <Users className="h-4 w-4 text-zinc-500" /> Miembros
+                <div className={`${adminPanelClass} p-5`}>
+                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[color:var(--admin-text)]">
+                        <Users className="h-4 w-4 text-[color:var(--admin-text-subtle)]" /> Miembros
                     </h2>
-                    <div className="divide-y divide-white/10">
+                    <div className="divide-y divide-[color:var(--admin-border)]">
                         {ws.members.map((m) => (
                             <div key={m.id} className="flex items-center justify-between py-3 px-1">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cyan-300/30 bg-cyan-400/12 text-xs font-semibold text-cyan-100">
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[color:var(--admin-accent-soft)] bg-[color:var(--admin-accent-soft)] text-xs font-semibold text-[color:var(--admin-accent-strong)]">
                                         {m.avatar ? (
                                             <img src={m.avatar} alt="" className="h-full w-full object-cover" />
                                         ) : (
@@ -59,35 +63,35 @@ export default async function AdminWorkspaceDetailPage({ params }: { params: Pro
                                         )}
                                     </div>
                                     <div>
-                                        <Link href={`/admin/users/${m.id}`} className="text-sm font-medium text-zinc-200 transition-colors hover:text-cyan-200">
+                                        <Link href={`/admin/users/${m.id}`} className="text-sm font-medium text-[color:var(--admin-text)] transition-colors hover:text-[color:var(--admin-accent-strong)]">
                                             {m.name || "Sin nombre"}
                                         </Link>
-                                        <p className="text-xs text-zinc-500">{m.email}</p>
+                                        <p className="text-xs text-[color:var(--admin-text-subtle)]">{m.email}</p>
                                     </div>
                                 </div>
-                                <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{m.role}</span>
+                                <span className={getAdminBadgeClasses("neutral")}>{m.role}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
-                        <Wallet className="h-4 w-4 text-zinc-500" /> Cuentas
+                <div className={`${adminPanelClass} p-5`}>
+                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[color:var(--admin-text)]">
+                        <Wallet className="h-4 w-4 text-[color:var(--admin-text-subtle)]" /> Cuentas
                     </h2>
                     {ws.accounts.length === 0 ? (
-                        <p className="py-4 text-center text-sm text-zinc-600">Sin cuentas</p>
+                        <p className="py-4 text-center text-sm text-[color:var(--admin-text-subtle)]">Sin cuentas</p>
                     ) : (
-                        <div className="divide-y divide-white/10">
+                        <div className="divide-y divide-[color:var(--admin-border)]">
                             {ws.accounts.map((a) => (
                                 <div key={a.id} className="flex items-center justify-between py-3 px-1">
                                     <div>
-                                        <p className="text-sm font-medium text-zinc-200">{a.name}</p>
-                                        <p className="text-xs text-zinc-500 capitalize">{a.type}</p>
+                                        <p className="text-sm font-medium text-[color:var(--admin-text)]">{a.name}</p>
+                                        <p className="text-xs capitalize text-[color:var(--admin-text-subtle)]">{a.type}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-mono font-medium text-zinc-200">{a.balance.toFixed(2)}</p>
-                                        <p className="text-xs text-zinc-500">{a.currency}</p>
+                                        <p className="text-sm font-mono font-medium text-[color:var(--admin-text)]">{a.balance.toFixed(2)}</p>
+                                        <p className="text-xs text-[color:var(--admin-text-subtle)]">{a.currency}</p>
                                     </div>
                                 </div>
                             ))}
@@ -95,9 +99,9 @@ export default async function AdminWorkspaceDetailPage({ params }: { params: Pro
                     )}
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
-                        <Building2 className="h-4 w-4 text-zinc-500" /> Información
+                <div className={`${adminPanelClass} p-5`}>
+                    <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[color:var(--admin-text)]">
+                        <Building2 className="h-4 w-4 text-[color:var(--admin-text-subtle)]" /> Información
                     </h2>
                     <dl className="space-y-3">
                         <InfoRow icon={Globe} label="País" value={ws.country ?? "—"} />
@@ -115,10 +119,10 @@ export default async function AdminWorkspaceDetailPage({ params }: { params: Pro
 
 function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-4 text-center">
-            <Icon className="mx-auto h-4 w-4 text-zinc-500" />
-            <p className="mt-2 text-lg font-bold text-zinc-100">{value}</p>
-            <p className="text-xs text-zinc-500">{label}</p>
+        <div className={`${adminPanelClass} p-4 text-center`}>
+            <Icon className="mx-auto h-4 w-4 text-[color:var(--admin-text-subtle)]" />
+            <p className="mt-2 text-lg font-bold text-[color:var(--admin-text)]">{value}</p>
+            <p className="text-xs text-[color:var(--admin-text-subtle)]">{label}</p>
         </div>
     );
 }
@@ -126,9 +130,9 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
 function InfoRow({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
     return (
         <div className="flex items-center gap-3 text-sm">
-            <Icon className="h-4 w-4 shrink-0 text-zinc-600" />
-            <span className="text-zinc-500 w-24 shrink-0">{label}</span>
-            <span className="text-zinc-300">{value}</span>
+            <Icon className="h-4 w-4 shrink-0 text-[color:var(--admin-text-subtle)]" />
+            <span className="w-24 shrink-0 text-[color:var(--admin-text-subtle)]">{label}</span>
+            <span className="text-[color:var(--admin-text-muted)]">{value}</span>
         </div>
     );
 }

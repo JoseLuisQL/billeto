@@ -23,6 +23,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminDataTable } from "@/components/admin/shared/AdminDataTable";
+import {
+    getAdminBadgeClasses,
+    getPlanLabel,
+    getPlanTone,
+} from "@/components/admin/shared/admin-ui";
 import type { AdminUserRow } from "@/lib/actions/admin/users";
 import {
     verificarEmailAdmin,
@@ -43,7 +48,10 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
     const [pending, startTransition] = useTransition();
     const [actionError, setActionError] = useState<string | null>(null);
 
-    const runAction = (fn: () => Promise<unknown>) => {
+    const runAction = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setActionError(null);
         startTransition(async () => {
             try {
@@ -63,7 +71,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             accessorFn: (row: AdminUserRow) => row.name ?? "",
             cell: (row: AdminUserRow) => (
                 <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-500/20 bg-cyan-500/10 text-xs font-bold text-cyan-400 overflow-hidden">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[color:var(--admin-accent-soft)] bg-[color:var(--admin-accent-soft)] text-xs font-bold text-[color:var(--admin-accent-strong)]">
                         {row.avatar ? (
                             <img src={row.avatar} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -71,11 +79,11 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
                         )}
                     </div>
                     <div>
-                        <Link href={`/admin/users/${row.id}`} className="font-medium text-zinc-200 hover:text-cyan-400 transition-colors">
+                        <Link href={`/admin/users/${row.id}`} className="font-medium text-[color:var(--admin-text)] transition-colors hover:text-[color:var(--admin-accent-strong)]">
                             {row.name || "Sin nombre"}
                         </Link>
                         {row.isAdmin && (
-                            <span className="ml-2 inline-flex rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[10px] font-semibold text-amber-400">ADMIN</span>
+                            <span className={`ml-2 ${getAdminBadgeClasses("warning")}`}>Admin</span>
                         )}
                     </div>
                 </div>
@@ -88,13 +96,13 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             accessorFn: (row: AdminUserRow) => row.email,
             cell: (row: AdminUserRow) => (
                 <div className="flex items-center gap-2">
-                    <span className="text-zinc-400 truncate max-w-[200px]">{row.email}</span>
+                    <span className="max-w-[200px] truncate text-[color:var(--admin-text-muted)]">{row.email}</span>
                     {row.emailVerified ? (
-                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400" title="Verificado">
+                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[color:var(--admin-success-soft)] text-[color:var(--admin-success)]" title="Verificado">
                             <ShieldCheck className="h-3 w-3" />
                         </span>
                     ) : (
-                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-400" title="No verificado">
+                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[color:var(--admin-warning-soft)] text-[color:var(--admin-warning)]" title="No verificado">
                             <Mail className="h-3 w-3" />
                         </span>
                     )}
@@ -107,13 +115,8 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             sortable: true,
             accessorFn: (row: AdminUserRow) => row.plan,
             cell: (row: AdminUserRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.plan === "premium"
-                        ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        : row.plan === "pro"
-                            ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                            : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
-                    }`}>
-                    {row.plan}
+                <span className={getAdminBadgeClasses(getPlanTone(row.plan))}>
+                    {getPlanLabel(row.plan)}
                 </span>
             ),
         },
@@ -122,7 +125,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             header: "País",
             sortable: true,
             accessorFn: (row: AdminUserRow) => row.country ?? "—",
-            cell: (row: AdminUserRow) => <span className="text-zinc-400">{row.country ?? "—"}</span>,
+            cell: (row: AdminUserRow) => <span className="text-[color:var(--admin-text-muted)]">{row.country ?? "—"}</span>,
         },
         {
             id: "status",
@@ -130,10 +133,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             sortable: true,
             accessorFn: (row: AdminUserRow) => row.status,
             cell: (row: AdminUserRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${row.status === "activo"
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                    }`}>
+                <span className={getAdminBadgeClasses(row.status === "activo" ? "success" : "danger")}>
                     {row.status}
                 </span>
             ),
@@ -144,7 +144,7 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
             sortable: true,
             accessorFn: (row: AdminUserRow) => row.createdAt,
             cell: (row: AdminUserRow) => (
-                <span className="text-zinc-500 text-xs whitespace-nowrap">
+                <span className="text-xs whitespace-nowrap text-[color:var(--admin-text-subtle)]">
                     {new Date(row.createdAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}
                 </span>
             ),
@@ -154,10 +154,10 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
     return (
         <div>
             {actionError && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400">
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:var(--admin-danger-soft)] bg-[color:var(--admin-danger-soft)] px-4 py-2.5 text-sm text-[color:var(--admin-danger)]">
                     <XCircle className="h-4 w-4 shrink-0" />
                     {actionError}
-                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-rose-400/60 hover:text-rose-400">
+                    <button type="button" onClick={() => setActionError(null)} className="ml-auto text-[color:var(--admin-danger)]/70 transition-colors hover:text-[color:var(--admin-danger)]">
                         <XCircle className="h-3.5 w-3.5" />
                     </button>
                 </div>
@@ -176,7 +176,8 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
                             <button
                                 type="button"
                                 disabled={pending}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50"
+                                aria-label={`Abrir acciones para ${row.name || row.email}`}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--admin-text-subtle)] transition-colors hover:bg-white/5 hover:text-[color:var(--admin-text)] disabled:opacity-50"
                             >
                                 <MoreHorizontal className="h-4 w-4" />
                             </button>
@@ -189,36 +190,36 @@ export function UsersTableClient({ users }: UsersTableClientProps) {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-white/5" />
                             {!row.emailVerified && (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => verificarEmailAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => verificarEmailAdmin(row.id), `¿Verificar manualmente el email de ${row.email}?`)}>
                                     <Mail className="h-4 w-4" /> Verificar email
                                 </DropdownMenuItem>
                             )}
                             {row.status === "activo" ? (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => suspenderUsuarioAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => suspenderUsuarioAdmin(row.id), `¿Programar la suspensión de ${row.email} para eliminación en 30 días?`)}>
                                     <UserX className="h-4 w-4" /> Suspender
                                 </DropdownMenuItem>
                             ) : (
                                 <>
-                                    <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => reactivarUsuarioAdmin(row.id))}>
+                                    <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => reactivarUsuarioAdmin(row.id), `¿Reactivar a ${row.email}?`)}>
                                         <UserCheck className="h-4 w-4" /> Reactivar
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => cancelarEliminacionAdmin(row.id))}>
+                                    <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => cancelarEliminacionAdmin(row.id), `¿Cancelar la eliminación programada de ${row.email}?`)}>
                                         <XCircle className="h-4 w-4" /> Cancelar eliminación
                                     </DropdownMenuItem>
                                 </>
                             )}
                             <DropdownMenuSeparator className="bg-white/5" />
                             {row.isAdmin ? (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => runAction(() => revocarAdminAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => runAction(() => revocarAdminAdmin(row.id), `¿Revocar permisos de administrador a ${row.email}?`)}>
                                     <ShieldOff className="h-4 w-4" /> Revocar admin
                                 </DropdownMenuItem>
                             ) : (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => promoverAdminAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300" onClick={() => runAction(() => promoverAdminAdmin(row.id), `¿Promover a ${row.email} como administrador?`)}>
                                     <Crown className="h-4 w-4" /> Promover a admin
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator className="bg-white/5" />
-                            <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => eliminarUsuarioAdmin(row.id))}>
+                            <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400" onClick={() => runAction(() => eliminarUsuarioAdmin(row.id), `¿Eliminar definitivamente a ${row.email}? Esta acción no se puede deshacer.`)}>
                                 <Trash2 className="h-4 w-4" /> Eliminar usuario
                             </DropdownMenuItem>
                         </DropdownMenuContent>

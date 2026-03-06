@@ -11,6 +11,11 @@ import {
     obtenerSystemPromptAdmin,
     obtenerPromptGuardConfigAdmin,
 } from "@/lib/actions/admin/ai";
+import {
+    adminPanelClass,
+    adminSectionHeaderClass,
+    getAdminIconBadgeClasses,
+} from "@/components/admin/shared/admin-ui";
 
 export default async function AdminAIPage() {
     return (
@@ -76,13 +81,13 @@ function Section({ icon: Icon, title, description, children }: {
 }) {
     return (
         <section className="space-y-4">
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-100">
+            <div className={adminSectionHeaderClass}>
+                <div className={getAdminIconBadgeClasses("accent")}>
                     <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
-                    <p className="text-xs text-zinc-500">{description}</p>
+                    <h2 className="text-lg font-semibold text-[color:var(--admin-text)]">{title}</h2>
+                    <p className="text-xs text-[color:var(--admin-text-subtle)]">{description}</p>
                 </div>
             </div>
             {children}
@@ -91,5 +96,5 @@ function Section({ icon: Icon, title, description, children }: {
 }
 
 function SectionSkeleton() {
-    return <div className="h-48 animate-pulse rounded-2xl border border-white/10 bg-[#0b1220]/80" />;
+    return <div className={`${adminPanelClass} h-48 animate-pulse`} />;
 }

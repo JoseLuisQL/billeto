@@ -4,6 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Check, XCircle } from "lucide-react";
 import { guardarSystemPromptAdmin } from "@/lib/actions/admin/ai";
+import {
+    adminInputClass,
+    adminPanelClass,
+    adminPrimaryButtonClass,
+} from "@/components/admin/shared/admin-ui";
 
 export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt: string; updatedAt: string | null }) {
     const router = useRouter();
@@ -28,11 +33,11 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
     };
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5 space-y-4">
+        <div className={`${adminPanelClass} space-y-4 p-5`}>
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-base font-semibold text-zinc-100">System Prompt</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">
+                    <h3 className="text-base font-semibold text-[color:var(--admin-text)]">System Prompt</h3>
+                    <p className="mt-0.5 text-xs text-[color:var(--admin-text-subtle)]">
                         Instrucciones base para el asistente de IA de Billeto
                         {updatedAt && <span className="ml-2">· Última edición: {new Date(updatedAt).toLocaleDateString("es-PE")}</span>}
                     </p>
@@ -41,7 +46,7 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
                     type="button"
                     onClick={handleSave}
                     disabled={pending || prompt === initialPrompt}
-                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-cyan-500 disabled:opacity-40 disabled:pointer-events-none"
+                    className={adminPrimaryButtonClass}
                 >
                     {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     {saved ? "Guardado" : pending ? "Guardando..." : "Guardar"}
@@ -49,7 +54,7 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
             </div>
 
             {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-400">
+                <div className="flex items-center gap-2 rounded-xl border border-[color:var(--admin-danger-soft)] bg-[color:var(--admin-danger-soft)] px-3 py-2 text-sm text-[color:var(--admin-danger)]">
                     <XCircle className="h-4 w-4 shrink-0" />{error}
                 </div>
             )}
@@ -58,14 +63,14 @@ export function SystemPromptEditor({ initialPrompt, updatedAt }: { initialPrompt
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={16}
-                className="w-full rounded-lg border border-white/[0.06] bg-zinc-950/50 p-4 text-sm leading-relaxed text-zinc-200 font-mono placeholder:text-zinc-600 outline-none transition-colors focus:border-cyan-500/40 focus:ring-1 focus:ring-cyan-500/20 resize-y"
+                className={`${adminInputClass} resize-y p-4 font-mono leading-relaxed`}
                 placeholder="Escribe el system prompt del asistente de IA aquí..."
             />
 
-            <div className="flex items-center justify-between text-xs text-zinc-600">
+            <div className="flex items-center justify-between text-xs text-[color:var(--admin-text-subtle)]">
                 <span>{prompt.length} caracteres</span>
                 <span className="flex items-center gap-1">
-                    <span className={`h-1.5 w-1.5 rounded-full ${prompt !== initialPrompt ? "bg-amber-400" : "bg-emerald-400"}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${prompt !== initialPrompt ? "bg-[color:var(--admin-warning)]" : "bg-[color:var(--admin-success)]"}`} />
                     {prompt !== initialPrompt ? "Sin guardar" : "Guardado"}
                 </span>
             </div>

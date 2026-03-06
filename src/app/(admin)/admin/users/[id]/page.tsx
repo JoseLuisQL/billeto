@@ -11,6 +11,10 @@ import {
     Clock,
 } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
+import {
+    adminPanelClass,
+    getAdminBadgeClasses,
+} from "@/components/admin/shared/admin-ui";
 import { obtenerDetalleUsuarioAdmin } from "@/lib/actions/admin/users";
 
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +47,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                     )}
                 />
                 {user.isAdmin && (
-                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
+                    <span className={`${getAdminBadgeClasses("warning")} items-center`}>
                         <Crown className="h-3 w-3" /> Admin
                     </span>
                 )}
@@ -143,21 +147,21 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
 
 function InfoCard({ icon: Icon, label, value, color }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; color: string }) {
     const colors: Record<string, string> = {
-        default: "text-zinc-400 bg-zinc-500/10 border-zinc-500/20",
-        emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-        amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-        rose: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+        default: "text-[color:var(--admin-text-muted)] bg-[color:var(--admin-surface-muted)] border-[color:var(--admin-border)]",
+        emerald: "text-[color:var(--admin-success)] bg-[color:var(--admin-success-soft)] border-[color:var(--admin-success-soft)]",
+        amber: "text-[color:var(--admin-warning)] bg-[color:var(--admin-warning-soft)] border-[color:var(--admin-warning-soft)]",
+        rose: "text-[color:var(--admin-danger)] bg-[color:var(--admin-danger-soft)] border-[color:var(--admin-danger-soft)]",
     };
     const style = colors[color] ?? colors.default;
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-4">
+        <div className={`${adminPanelClass} p-4`}>
             <div className="flex items-center gap-3">
                 <div className={`flex h-9 w-9 items-center justify-center rounded-lg border ${style}`}>
                     <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                    <p className="text-xs text-zinc-500">{label}</p>
-                    <p className="text-sm font-medium text-zinc-200">{value}</p>
+                    <p className="text-xs text-[color:var(--admin-text-subtle)]">{label}</p>
+                    <p className="text-sm font-medium text-[color:var(--admin-text)]">{value}</p>
                 </div>
             </div>
         </div>
@@ -166,11 +170,11 @@ function InfoCard({ icon: Icon, label, value, color }: { icon: React.ComponentTy
 
 function Section({ title, icon: Icon, count, children }: { title: string; icon: React.ComponentType<{ className?: string }>; count: number; children: React.ReactNode }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
+        <div className={`${adminPanelClass} p-5`}>
             <div className="flex items-center gap-2 mb-4">
-                <Icon className="h-4 w-4 text-zinc-500" />
-                <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
-                <span className="ml-auto rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-zinc-400">{count}</span>
+                <Icon className="h-4 w-4 text-[color:var(--admin-text-subtle)]" />
+                <h2 className="text-base font-semibold text-[color:var(--admin-text)]">{title}</h2>
+                <span className={`ml-auto ${getAdminBadgeClasses("neutral")}`}>{count}</span>
             </div>
             {children}
         </div>
@@ -178,6 +182,6 @@ function Section({ title, icon: Icon, count, children }: { title: string; icon: 
 }
 
 function EmptyState({ text }: { text: string }) {
-    return <p className="py-4 text-center text-sm text-zinc-600">{text}</p>;
+    return <p className="py-4 text-center text-sm text-[color:var(--admin-text-subtle)]">{text}</p>;
 }
 

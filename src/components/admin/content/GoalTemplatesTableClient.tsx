@@ -21,7 +21,10 @@ export function GoalTemplatesTableClient({ templates }: { templates: AdminGoalTe
     const [pending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
-    const run = (fn: () => Promise<unknown>) => {
+    const run = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setError(null);
         startTransition(async () => {
             try { await fn(); router.refresh(); }
@@ -102,12 +105,12 @@ export function GoalTemplatesTableClient({ templates }: { templates: AdminGoalTe
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={5} className="w-44 bg-[#18181b] border-white/10 p-1 rounded-xl shadow-2xl">
                             <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300"
-                                onClick={() => run(() => actualizarGoalTemplateAdmin(row.id, { isActive: !row.isActive }))}>
+                                onClick={() => run(() => actualizarGoalTemplateAdmin(row.id, { isActive: !row.isActive }), `${row.isActive ? "Desactivar" : "Activar"} la plantilla "${row.name}"?`)}>
                                 {row.isActive ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                                 {row.isActive ? "Desactivar" : "Activar"}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400"
-                                onClick={() => run(() => eliminarGoalTemplateAdmin(row.id))}>
+                                onClick={() => run(() => eliminarGoalTemplateAdmin(row.id), `¿Eliminar la plantilla "${row.name}"?`)}>
                                 <Trash2 className="h-4 w-4" /> Eliminar
                             </DropdownMenuItem>
                         </DropdownMenuContent>

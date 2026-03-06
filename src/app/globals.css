@@ -149,3 +149,28 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+.admin-theme {
+  --admin-bg: #0b1220;
+  --admin-surface: #111b2d;
+  --admin-surface-muted: #0f1726;
+  --admin-surface-elevated: #172235;
+  --admin-border: rgb(148 163 184 / 0.16);
+  --admin-border-strong: rgb(148 163 184 / 0.3);
+  --admin-text: #e8eef6;
+  --admin-text-muted: #c8d4e3;
+  --admin-text-subtle: #91a4bc;
+  --admin-accent: #9fbadb;
+  --admin-accent-strong: #c8dbef;
+  --admin-accent-soft: rgb(159 186 219 / 0.18);
+  --admin-success: #8fcfab;
+  --admin-success-soft: rgb(143 207 171 / 0.16);
+  --admin-warning: #dfc28c;
+  --admin-warning-soft: rgb(223 194 140 / 0.18);
+  --admin-danger: #e2a4aa;
+  --admin-danger-soft: rgb(226 164 170 / 0.18);
+  --admin-info: #a7bae5;
+  --admin-info-soft: rgb(167 186 229 / 0.18);
+  --admin-shadow: 0 24px 50px -32px rgb(2 8 23 / 0.56);
+  color-scheme: dark;
+}

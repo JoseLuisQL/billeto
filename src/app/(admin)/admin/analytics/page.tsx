@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AdminKPICard } from "@/components/admin/shared/AdminKPICard";
 import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
+import { adminPanelClass } from "@/components/admin/shared/admin-ui";
 import {
     obtenerAnalyticsGlobalesAdmin,
     obtenerDistribucionTransaccionesAdmin,
@@ -74,13 +75,13 @@ async function TransactionTypeSection() {
     const totalCount = dist.reduce((s, d) => s + d.count, 0);
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-            <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
-                <TrendingUp className="h-4 w-4 text-zinc-500" /> Distribución por Tipo
+        <div className={`${adminPanelClass} p-5`}>
+            <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-[color:var(--admin-text)]">
+                <TrendingUp className="h-4 w-4 text-[color:var(--admin-text-subtle)]" /> Distribución por Tipo
             </h3>
 
             {/* Progress bar */}
-            <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-zinc-800">
+            <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-[color:var(--admin-surface-muted)]">
                 {dist.map((d) => {
                     const pct = totalCount > 0 ? (d.count / totalCount) * 100 : 0;
                     const meta = typeLabels[d.type] ?? { color: "bg-zinc-600" };
@@ -98,9 +99,9 @@ async function TransactionTypeSection() {
                         <div key={d.type} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                                 <div className={`h-3 w-3 rounded-full ${meta.color}`} />
-                                <span className="text-zinc-300">{meta.label}</span>
+                                <span className="text-[color:var(--admin-text-muted)]">{meta.label}</span>
                             </div>
-                            <span className="text-zinc-400">{d.count.toLocaleString()} <span className="text-xs text-zinc-600">({pct}%)</span></span>
+                            <span className="text-[color:var(--admin-text-muted)]">{d.count.toLocaleString()} <span className="text-xs text-[color:var(--admin-text-subtle)]">({pct}%)</span></span>
                         </div>
                     );
                 })}
@@ -114,27 +115,27 @@ async function TopCategoriesSection() {
     const maxCount = cats.length > 0 ? cats[0].count : 1;
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-            <h3 className="mb-4 text-base font-semibold text-zinc-100">Top Categorías</h3>
+        <div className={`${adminPanelClass} p-5`}>
+            <h3 className="mb-4 text-base font-semibold text-[color:var(--admin-text)]">Top Categorías</h3>
             <div className="space-y-2.5">
                 {cats.map((c, i) => (
                     <div key={c.name + i} className="flex items-center gap-3">
                         <span className="text-base shrink-0 w-6">{c.icon}</span>
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-zinc-300 truncate">{c.name}</span>
-                                <span className="text-zinc-500 text-xs shrink-0 ml-2">{c.count}</span>
+                                <span className="truncate text-[color:var(--admin-text-muted)]">{c.name}</span>
+                                <span className="ml-2 shrink-0 text-xs text-[color:var(--admin-text-subtle)]">{c.count}</span>
                             </div>
-                            <div className="mt-1 h-1.5 rounded-full bg-zinc-800">
+                            <div className="mt-1 h-1.5 rounded-full bg-[color:var(--admin-surface-muted)]">
                                 <div
-                                    className="h-full rounded-full bg-cyan-400/70 transition-all duration-500"
+                                    className="h-full rounded-full bg-[color:var(--admin-accent)] transition-all duration-500"
                                     style={{ width: `${(c.count / maxCount) * 100}%` }}
                                 />
                             </div>
                         </div>
                     </div>
                 ))}
-                {cats.length === 0 && <p className="text-sm text-zinc-600 text-center py-4">Sin datos</p>}
+                {cats.length === 0 && <p className="py-4 text-center text-sm text-[color:var(--admin-text-subtle)]">Sin datos</p>}
             </div>
         </div>
     );
@@ -145,28 +146,28 @@ async function TopCountriesSection() {
     const maxCount = countries.length > 0 ? countries[0].count : 1;
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80 p-5">
-            <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-100">
-                <Globe className="h-4 w-4 text-zinc-500" /> Top Países
+        <div className={`${adminPanelClass} p-5`}>
+            <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-[color:var(--admin-text)]">
+                <Globe className="h-4 w-4 text-[color:var(--admin-text-subtle)]" /> Top Países
             </h3>
             <div className="space-y-2.5">
                 {countries.map((c) => (
                     <div key={c.country} className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-zinc-300">{c.country}</span>
-                                <span className="text-zinc-500 text-xs">{c.count} usuarios</span>
+                                <span className="text-[color:var(--admin-text-muted)]">{c.country}</span>
+                                <span className="text-xs text-[color:var(--admin-text-subtle)]">{c.count} usuarios</span>
                             </div>
-                            <div className="mt-1 h-1.5 rounded-full bg-zinc-800">
+                            <div className="mt-1 h-1.5 rounded-full bg-[color:var(--admin-surface-muted)]">
                                 <div
-                                    className="h-full rounded-full bg-emerald-500/60 transition-all duration-500"
+                                    className="h-full rounded-full bg-[color:var(--admin-success)] transition-all duration-500"
                                     style={{ width: `${(c.count / maxCount) * 100}%` }}
                                 />
                             </div>
                         </div>
                     </div>
                 ))}
-                {countries.length === 0 && <p className="text-sm text-zinc-600 text-center py-4">Sin datos</p>}
+                {countries.length === 0 && <p className="py-4 text-center text-sm text-[color:var(--admin-text-subtle)]">Sin datos</p>}
             </div>
         </div>
     );

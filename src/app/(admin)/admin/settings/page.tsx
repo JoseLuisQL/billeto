@@ -4,6 +4,15 @@ import { AdminPageHeader } from "@/components/admin/shared/AdminPageHeader";
 import { FeatureFlagsClient } from "@/components/admin/settings/FeatureFlagsClient";
 import { MaintenanceModeClient } from "@/components/admin/settings/MaintenanceModeClient";
 import {
+    adminPanelClass,
+    adminSectionHeaderClass,
+    getAdminIconBadgeClasses,
+} from "@/components/admin/shared/admin-ui";
+import {
+    formatAdminPreview,
+    shouldFullyRedactConfig,
+} from "@/lib/admin-redaction";
+import {
     obtenerFeatureFlagsAdmin,
     obtenerMaintenanceModeAdmin,
     obtenerSystemConfigAdmin,
@@ -53,22 +62,23 @@ async function ConfigSection() {
     const configs = await obtenerSystemConfigAdmin();
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-[#0b1220]/80">
+        <div className={adminPanelClass}>
             {configs.length === 0 ? (
-                <p className="p-6 text-center text-sm text-zinc-600">No hay configuraciones almacenadas</p>
+                <p className="p-6 text-center text-sm text-[color:var(--admin-text-subtle)]">No hay configuraciones almacenadas</p>
             ) : (
-                <div className="divide-y divide-white/10">
+                <div className="divide-y divide-[color:var(--admin-border)]">
                     {configs.map((c) => (
                         <div key={c.id} className="px-5 py-4">
                             <div className="flex items-center justify-between mb-1">
-                                <span className="font-mono text-sm font-medium text-zinc-200">{c.key}</span>
-                                <span className="text-xs text-zinc-600">
+                                <span className="font-mono text-sm font-medium text-[color:var(--admin-text)]">{c.key}</span>
+                                <span className="text-xs text-[color:var(--admin-text-subtle)]">
                                     {new Date(c.updatedAt).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                 </span>
                             </div>
-                            <div className="rounded-lg bg-zinc-950/50 px-3 py-2 text-xs text-zinc-400 font-mono overflow-x-auto max-h-[80px] overflow-y-auto">
-                                {JSON.stringify(c.value, null, 2).slice(0, 300)}
-                                {JSON.stringify(c.value, null, 2).length > 300 && "…"}
+                            <div className="rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-muted)] px-3 py-2 text-xs text-[color:var(--admin-text-muted)] font-mono overflow-x-auto max-h-[96px] overflow-y-auto">
+                                {shouldFullyRedactConfig(c.key)
+                                    ? "Contenido oculto por seguridad"
+                                    : formatAdminPreview(c.value, "Sin valor")}
                             </div>
                         </div>
                     ))}
@@ -85,11 +95,11 @@ function Section({ icon: Icon, title, children }: {
 }) {
     return (
         <section className="space-y-4">
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-100">
+            <div className={adminSectionHeaderClass}>
+                <div className={getAdminIconBadgeClasses("accent")}>
                     <Icon className="h-4 w-4" />
                 </div>
-                <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
+                <h2 className="text-lg font-semibold text-[color:var(--admin-text)]">{title}</h2>
             </div>
             {children}
         </section>
@@ -97,5 +107,5 @@ function Section({ icon: Icon, title, children }: {
 }
 
 function SectionSkeleton() {
-    return <div className="h-48 animate-pulse rounded-2xl border border-white/10 bg-[#0b1220]/80" />;
+    return <div className={`${adminPanelClass} h-48 animate-pulse`} />;
 }

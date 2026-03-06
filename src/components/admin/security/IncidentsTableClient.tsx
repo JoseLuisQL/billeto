@@ -10,6 +10,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminDataTable } from "@/components/admin/shared/AdminDataTable";
+import {
+    getAdminBadgeClasses,
+    getIncidentSeverityLabel,
+    getIncidentSeverityTone,
+    getIncidentStatusLabel,
+} from "@/components/admin/shared/admin-ui";
 import type { AdminIncidentRow } from "@/lib/actions/admin/security";
 import { resolverIncidenteAdmin, reabrirIncidenteAdmin } from "@/lib/actions/admin/security";
 
@@ -18,19 +24,15 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
     const [pending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
-    const run = (fn: () => Promise<unknown>) => {
+    const run = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setError(null);
         startTransition(async () => {
             try { await fn(); router.refresh(); }
             catch (e) { setError(e instanceof Error ? e.message : "Error"); }
         });
-    };
-
-    const severityColors: Record<string, string> = {
-        critical: "bg-rose-500/10 text-rose-400 border-rose-500/20",
-        high: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-        low: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
     };
 
     const columns = [
@@ -40,8 +42,8 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
             sortable: true,
             accessorFn: (row: AdminIncidentRow) => row.severity,
             cell: (row: AdminIncidentRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${severityColors[row.severity] ?? severityColors.low}`}>
-                    {row.severity}
+                <span className={getAdminBadgeClasses(getIncidentSeverityTone(row.severity))}>
+                    {getIncidentSeverityLabel(row.severity)}
                 </span>
             ),
             className: "w-20",
@@ -51,7 +53,7 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
             header: "Tipo",
             sortable: true,
             accessorFn: (row: AdminIncidentRow) => row.type,
-            cell: (row: AdminIncidentRow) => <span className="text-zinc-400 text-xs font-mono">{row.type}</span>,
+            cell: (row: AdminIncidentRow) => <span className="text-xs font-mono text-[color:var(--admin-text-subtle)]">{row.type}</span>,
         },
         {
             id: "title",
@@ -60,8 +62,8 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
             accessorFn: (row: AdminIncidentRow) => row.title,
             cell: (row: AdminIncidentRow) => (
                 <div>
-                    <p className="font-medium text-zinc-200 text-sm truncate max-w-[250px]">{row.title}</p>
-                    {row.description && <p className="text-xs text-zinc-500 truncate max-w-[250px]">{row.description}</p>}
+                    <p className="max-w-[250px] truncate text-sm font-medium text-[color:var(--admin-text)]">{row.title}</p>
+                    {row.description && <p className="max-w-[250px] truncate text-xs text-[color:var(--admin-text-subtle)]">{row.description}</p>}
                 </div>
             ),
         },
@@ -71,11 +73,8 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
             sortable: true,
             accessorFn: (row: AdminIncidentRow) => row.status,
             cell: (row: AdminIncidentRow) => (
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${row.status === "resolved"
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                    }`}>
-                    {row.status}
+                <span className={getAdminBadgeClasses(row.status === "resolved" ? "success" : "danger")}>
+                    {getIncidentStatusLabel(row.status)}
                 </span>
             ),
         },
@@ -85,7 +84,7 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
             sortable: true,
             accessorFn: (row: AdminIncidentRow) => row.createdAt,
             cell: (row: AdminIncidentRow) => (
-                <span className="text-zinc-500 text-xs whitespace-nowrap font-mono">
+                <span className="text-xs whitespace-nowrap font-mono text-[color:var(--admin-text-subtle)]">
                     {new Date(row.createdAt).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
             ),
@@ -95,9 +94,9 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
     return (
         <div>
             {error && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-400">
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-[color:var(--admin-danger-soft)] bg-[color:var(--admin-danger-soft)] px-4 py-2.5 text-sm text-[color:var(--admin-danger)]">
                     <XCircle className="h-4 w-4 shrink-0" />{error}
-                    <button type="button" onClick={() => setError(null)} className="ml-auto"><XCircle className="h-3.5 w-3.5" /></button>
+                    <button type="button" onClick={() => setError(null)} className="ml-auto text-[color:var(--admin-danger)]/70 transition-colors hover:text-[color:var(--admin-danger)]"><XCircle className="h-3.5 w-3.5" /></button>
                 </div>
             )}
             <AdminDataTable
@@ -110,17 +109,17 @@ export function IncidentsTableClient({ incidents }: { incidents: AdminIncidentRo
                 actions={(row) => (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button type="button" disabled={pending} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/5 hover:text-zinc-300 disabled:opacity-50">
+                            <button type="button" disabled={pending} aria-label={`Abrir acciones para incidente ${row.title}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--admin-text-subtle)] transition-colors hover:bg-white/5 hover:text-[color:var(--admin-text)] disabled:opacity-50">
                                 <MoreHorizontal className="h-4 w-4" />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={5} className="w-44 bg-[#18181b] border-white/10 p-1 rounded-xl shadow-2xl">
                             {row.status === "open" ? (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => run(() => resolverIncidenteAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-emerald-400" onClick={() => run(() => resolverIncidenteAdmin(row.id), `¿Marcar el incidente "${row.title}" como resuelto?`)}>
                                     <CheckCircle className="h-4 w-4" /> Resolver
                                 </DropdownMenuItem>
                             ) : (
-                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => run(() => reabrirIncidenteAdmin(row.id))}>
+                                <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-amber-400" onClick={() => run(() => reabrirIncidenteAdmin(row.id), `¿Reabrir el incidente "${row.title}"?`)}>
                                     <RotateCcw className="h-4 w-4" /> Reabrir
                                 </DropdownMenuItem>
                             )}

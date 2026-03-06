@@ -2,6 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { CalendarDays, Menu, Search } from "lucide-react";
+import {
+    adminIconButtonClass,
+    adminTextButtonClass,
+} from "@/components/admin/shared/admin-ui";
 
 interface AdminHeaderProps {
     onToggleSidebar?: () => void;
@@ -57,12 +61,13 @@ export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
     }).format(new Date());
 
     return (
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#060b14]/75 backdrop-blur-xl">
-            <div className="mx-auto flex h-[72px] w-full max-w-[1400px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 border-b border-[color:var(--admin-border)] bg-[color:var(--admin-bg)]/88 backdrop-blur-xl">
+            <div className="mx-auto flex h-[72px] w-full max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
                 <button
                     type="button"
                     onClick={onToggleSidebar}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-zinc-300 transition-colors hover:bg-white/[0.08] hover:text-zinc-100 lg:hidden"
+                    aria-label="Abrir navegación lateral"
+                    className={`${adminIconButtonClass} lg:hidden`}
                 >
                     <Menu className="h-5 w-5" />
                 </button>
@@ -70,31 +75,28 @@ export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
                 <nav className="hidden items-center gap-2 text-sm sm:flex">
                     {crumbs.map((crumb, i) => (
                         <span key={crumb.href} className="flex items-center gap-2">
-                            {i > 0 && <span className="text-zinc-600">/</span>}
-                            <span className={i === crumbs.length - 1 ? "font-medium text-zinc-100" : "text-zinc-500"}>
+                            {i > 0 && <span className="text-[color:var(--admin-text-subtle)]">/</span>}
+                            <span className={i === crumbs.length - 1 ? "font-medium text-[color:var(--admin-text)]" : "text-[color:var(--admin-text-subtle)]"}>
                                 {crumb.label}
                             </span>
                         </span>
                     ))}
                 </nav>
 
-                <h1 className="text-sm font-medium text-zinc-100 sm:hidden">{pageTitle}</h1>
+                <h1 className="text-sm font-medium text-[color:var(--admin-text)] sm:hidden">{pageTitle}</h1>
 
                 <div className="ml-auto flex items-center gap-2">
-                    <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-400 xl:flex">
-                        <CalendarDays className="h-3.5 w-3.5 text-cyan-200" />
+                    <div className="hidden items-center gap-2 rounded-full border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-muted)] px-3 py-1.5 text-xs text-[color:var(--admin-text-muted)] xl:flex">
+                        <CalendarDays className="h-3.5 w-3.5 text-[color:var(--admin-accent)]" />
                         {formattedDate}
                     </div>
-                    <button
-                        type="button"
-                        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-white/[0.08] hover:text-zinc-200"
+                    <div
+                        aria-label="Búsqueda global próximamente"
+                        className={`${adminTextButtonClass} hidden sm:flex`}
                     >
                         <Search className="h-4 w-4" />
-                        <span className="hidden sm:inline">Buscar...</span>
-                        <kbd className="hidden rounded border border-white/10 bg-[#111a2a] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 sm:inline">
-                            ⌘K
-                        </kbd>
-                    </button>
+                        <span>Búsqueda global próximamente</span>
+                    </div>
                 </div>
             </div>
         </header>

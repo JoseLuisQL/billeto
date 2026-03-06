@@ -19,7 +19,10 @@ export function ToolsTableClient({ tools }: { tools: AdminToolRow[] }) {
     const [pending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
-    const run = (fn: () => Promise<unknown>) => {
+    const run = (fn: () => Promise<unknown>, confirmMessage?: string) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            return;
+        }
         setError(null);
         startTransition(async () => {
             try { await fn(); router.refresh(); }
@@ -86,13 +89,13 @@ export function ToolsTableClient({ tools }: { tools: AdminToolRow[] }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={5} className="w-44 bg-[#18181b] border-white/10 p-1 rounded-xl shadow-2xl">
                             <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-zinc-300"
-                                onClick={() => run(() => actualizarToolIAAdmin(row.id, { isEnabled: !row.isEnabled }))}>
+                                onClick={() => run(() => actualizarToolIAAdmin(row.id, { isEnabled: !row.isEnabled }), `${row.isEnabled ? "Deshabilitar" : "Habilitar"} la herramienta "${row.displayName}"?`)}>
                                 {row.isEnabled ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                                 {row.isEnabled ? "Deshabilitar" : "Habilitar"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-white/5" />
                             <DropdownMenuItem className="cursor-pointer gap-3 focus:bg-white/5 py-2 rounded-lg text-rose-400"
-                                onClick={() => run(() => eliminarToolIAAdmin(row.id))}>
+                                onClick={() => run(() => eliminarToolIAAdmin(row.id), `¿Eliminar la herramienta "${row.displayName}"?`)}>
                                 <Trash2 className="h-4 w-4" /> Eliminar
                             </DropdownMenuItem>
                         </DropdownMenuContent>
