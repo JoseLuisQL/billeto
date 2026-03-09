@@ -106,10 +106,27 @@ export async function crearTransaccion(formData: FormData) {
         const amount = parseFloat(formData.get("amount") as string);
         const dateStr = formData.get("date") as string;
         const date = dateStr ? new Date(dateStr) : new Date();
+        const source = ((formData.get("source") as string) || "web").trim() || "web";
+        const requestId = ((formData.get("requestId") as string) || "").trim() || null;
 
         // Validaciones
         if (!description || description.trim().length === 0) return { error: "La descripción es obligatoria." };
         if (isNaN(amount) || amount <= 0) return { error: "El monto debe ser mayor a 0." };
+        if (Number.isNaN(date.getTime())) return { error: "La fecha es inválida." };
+
+        if (requestId) {
+            const existing = await prisma.transaction.findFirst({
+                where: {
+                    workspaceId: workspace.id,
+                    requestId,
+                    deletedAt: null,
+                },
+            });
+
+            if (existing) {
+                return { success: true, transaccion: existing, deduplicated: true };
+            }
+        }
 
         // ── Full Rule Engine ──
         let ruleResult: RuleResult | null = null;
@@ -185,7 +202,8 @@ export async function crearTransaccion(formData: FormData) {
                     fxRateId: fxRateId ?? undefined,
                     description: description.trim(),
                     type,
-                    source: "web",
+                    source,
+                    requestId: requestId ?? undefined,
                     date,
                 },
             });
@@ -276,6 +294,8 @@ export async function crearTransaccion(formData: FormData) {
                     after: {
                         description, amount, type,
                         accountId: finalAccountId, categoryId,
+                        source,
+                        requestId,
                         rulesApplied: ruleResult?.matchedRuleIds || [],
                     },
                 },

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "xmcp build && concurrently \"xmcp dev\" \"next dev\"",
-    "build": "xmcp build && next build",
+    "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\\Proyectos\\billeto\\scripts\\dev.ps1 C:\\Proyectos\\billeto C:\\Proyectos\\billeto\\scripts\\dev.cjs",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\\Proyectos\\billeto\\scripts\\build.ps1 C:\\Proyectos\\billeto C:\\Proyectos\\billeto\\scripts\\build.cjs",
     "start": "next start",
     "lint": "eslint"
   },

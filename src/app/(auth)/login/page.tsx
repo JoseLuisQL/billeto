@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { motion } from "framer-motion";
-import { iniciarSesion } from "@/lib/actions/auth";
-import { getOnboardingStatus } from "@/lib/actions/onboarding";
 import { signIn as nextAuthSignIn } from "next-auth/react";
 
 import { BilletoLogo } from "@/components/ui/logo";
@@ -20,7 +18,7 @@ import { BilletoLogo } from "@/components/ui/logo";
  * Usa server actions para iniciar sesión con credenciales.
  */
 export default function LoginPage() {
-    const router = useRouter();
+    const searchParams = useSearchParams();
     const [mostrarPassword, setMostrarPassword] = useState(false);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -31,20 +29,28 @@ export default function LoginPage() {
         setError(null);
 
         const formData = new FormData(e.currentTarget);
-        const resultado = await iniciarSesion(formData);
+        const email = String(formData.get("email") || "").trim().toLowerCase();
+        const password = String(formData.get("password") || "");
+        const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
-        if (resultado.error) {
-            setError(resultado.error);
-            setCargando(false);
-        } else {
-            // Check if user needs onboarding
-            const onboarding = await getOnboardingStatus();
-            if (onboarding.needsOnboarding) {
-                router.push("/onboarding");
-            } else {
-                router.push("/dashboard");
+        try {
+            const resultado = await nextAuthSignIn("credentials", {
+                email,
+                password,
+                redirect: false,
+                callbackUrl,
+            });
+
+            if (resultado?.error) {
+                setError("Email o contraseña incorrectos.");
+                setCargando(false);
+                return;
             }
-            router.refresh();
+
+            window.location.assign(callbackUrl);
+        } catch {
+            setError("Error al iniciar sesión. Intentá de nuevo.");
+            setCargando(false);
         }
     };
 

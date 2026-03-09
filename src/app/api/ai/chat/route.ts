@@ -1,5 +1,13 @@
 import { google } from "@ai-sdk/google";
-import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
+import {
+  streamText,
+  tool,
+  convertToModelMessages,
+  stepCountIs,
+  type UIMessage,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+} from "ai";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +26,10 @@ import {
   normalizeCategoryName,
 } from "@/lib/categories-defaults";
 import { convertAndSave } from "@/lib/fx-service";
+import {
+  handleAssistantDocumentUpload,
+  handlePendingAssistantDocumentReply,
+} from "@/lib/assistant-documents";
 
 type ToolErrorResult = {
   success: false;
@@ -29,6 +41,20 @@ type ToolErrorResult = {
 };
 
 type ToolCatchError = Error & { message: string };
+type TransactionSummaryCard = {
+  title: string;
+  id: string;
+  amount: string;
+  description: string;
+  category: string;
+  account: string;
+  date: string;
+  transactionType: string;
+};
+type AssistantDataParts = {
+  transaction_summary: TransactionSummaryCard;
+};
+type AssistantUIMessage = UIMessage<unknown, AssistantDataParts>;
 
 const TOOL_TIMEOUT_MS = 12_000;
 const MAX_TOOL_REPEAT = 2;
@@ -175,6 +201,35 @@ function formatDateForWorkspace(date: Date, timezone: string) {
   }).format(date);
 }
 
+function createAssistantTextResponse(text: string, headers?: HeadersInit) {
+  const id = crypto.randomUUID();
+
+  return createUIMessageStreamResponse({
+    headers,
+    stream: createUIMessageStream<AssistantUIMessage>({
+      execute: async ({ writer }) => {
+        writer.write({ type: "text-start", id });
+        writer.write({ type: "text-delta", id, delta: text });
+        writer.write({ type: "text-end", id });
+      },
+    }),
+  });
+}
+
+function createTransactionSummaryResponse(summaryCard: TransactionSummaryCard, headers?: HeadersInit) {
+  return createUIMessageStreamResponse({
+    headers,
+    stream: createUIMessageStream<AssistantUIMessage>({
+      execute: async ({ writer }) => {
+        writer.write({
+          type: "data-transaction_summary",
+          data: summaryCard,
+        });
+      },
+    }),
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -240,6 +295,66 @@ export async function POST(req: Request) {
         userId,
         workspaceId,
         inputPreview: lastUserText.slice(0, 80),
+      });
+    }
+
+    const lastUserFiles = ((lastUserMsg?.parts || []) as Array<{
+      type: string;
+      url?: string;
+      mediaType?: string;
+      filename?: string;
+    }>).filter((part) => part.type === "file" && typeof part.url === "string");
+
+    if (lastUserFiles.length > 1) {
+      return createAssistantTextResponse(
+        "Por ahora puedes subir un comprobante por vez. Analizo el primero que envies y luego seguimos con el siguiente.",
+        { "X-Billeto-Document-Flow": "1" }
+      );
+    }
+
+    if (lastUserFiles.length === 1) {
+      const documentResult = await handleAssistantDocumentUpload({
+        filePart: {
+          type: "file",
+          url: lastUserFiles[0].url!,
+          mediaType: lastUserFiles[0].mediaType || "application/octet-stream",
+          filename: lastUserFiles[0].filename,
+        },
+        userId,
+        workspaceId,
+        baseCurrency: access.workspace.baseCurrency,
+        timezone: workspaceTimezone,
+        workspaceName: access.workspace.name,
+      });
+
+      if (documentResult.summaryCard) {
+        return createTransactionSummaryResponse(documentResult.summaryCard, {
+          "X-Billeto-Document-Flow": "1",
+        });
+      }
+
+      return createAssistantTextResponse(documentResult.message || "No pude procesar el documento.", {
+        "X-Billeto-Document-Flow": "1",
+      });
+    }
+
+    const pendingDocumentReply = await handlePendingAssistantDocumentReply({
+      text: lastUserText,
+      userId,
+      workspaceId,
+      timezone: workspaceTimezone,
+      baseCurrency: access.workspace.baseCurrency,
+    });
+
+    if (pendingDocumentReply) {
+      if (pendingDocumentReply.summaryCard) {
+        return createTransactionSummaryResponse(pendingDocumentReply.summaryCard, {
+          "X-Billeto-Document-Flow": "1",
+        });
+      }
+
+      return createAssistantTextResponse(pendingDocumentReply.message || "No pude continuar con el comprobante.", {
+        "X-Billeto-Document-Flow": "1",
       });
     }
 

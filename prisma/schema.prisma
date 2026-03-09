@@ -212,6 +212,46 @@ model Transaction {
   @@map("transactions")
 }
 
+/// Registro de ingesta documental del asistente AI
+model DocumentIngestion {
+  id                       String    @id @default(cuid())
+  workspaceId              String    @map("workspace_id")
+  userId                   String    @map("user_id")
+  transactionId            String?   @map("transaction_id")
+  status                   String    @default("uploaded")
+  fileName                 String?   @map("file_name")
+  mimeType                 String    @map("mime_type")
+  fileSizeBytes            Int       @map("file_size_bytes")
+  storagePath              String    @map("storage_path")
+  contentHash              String    @map("content_hash")
+  signature                String?
+  documentKind             String?   @map("document_kind")
+  merchantName             String?   @map("merchant_name")
+  referenceNumber          String?   @map("reference_number")
+  issueDate                DateTime? @map("issue_date")
+  currency                 String?
+  totalAmount              Decimal?  @map("total_amount") @db.Decimal(15, 2)
+  transactionType          String?   @map("transaction_type")
+  suggestedDescription     String?   @map("suggested_description")
+  suggestedCategoryName    String?   @map("suggested_category_name")
+  suggestedAccountName     String?   @map("suggested_account_name")
+  confidence               Float?
+  duplicateOfIngestionId   String?   @map("duplicate_of_ingestion_id")
+  duplicateOfTransactionId String?   @map("duplicate_of_transaction_id")
+  rejectionReason          String?   @map("rejection_reason")
+  providerSlug             String?   @map("provider_slug")
+  modelId                  String?   @map("model_id")
+  extractedData            Json?     @map("extracted_data")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@index([workspaceId, status, createdAt(sort: Desc)])
+  @@index([workspaceId, contentHash])
+  @@index([workspaceId, signature, createdAt(sort: Desc)])
+  @@index([workspaceId, userId, createdAt(sort: Desc)])
+  @@map("document_ingestions")
+}
+
 /// Archivo adjunto a una transacción (imagen, PDF)
 model Attachment {
   id            String      @id @default(cuid())
