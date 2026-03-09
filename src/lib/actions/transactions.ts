@@ -108,6 +108,7 @@ export async function crearTransaccion(formData: FormData) {
         const date = dateStr ? new Date(dateStr) : new Date();
         const source = ((formData.get("source") as string) || "web").trim() || "web";
         const requestId = ((formData.get("requestId") as string) || "").trim() || null;
+        const currencyCode = ((formData.get("currencyCode") as string) || "").trim().toUpperCase() || null;
 
         // Validaciones
         if (!description || description.trim().length === 0) return { error: "La descripción es obligatoria." };
@@ -149,7 +150,7 @@ export async function crearTransaccion(formData: FormData) {
 
         let cuenta: { id: string; currency: string } | null = null;
         // Use rule-assigned account if no manual account
-        const finalAccountId = accountId || ruleResult?.accountId || null;
+        let finalAccountId = accountId || ruleResult?.accountId || null;
         if (finalAccountId) {
             cuenta = await prisma.account.findFirst({
                 where: { id: finalAccountId, workspaceId: workspace.id, deletedAt: null },
@@ -182,7 +183,11 @@ export async function crearTransaccion(formData: FormData) {
         const cambioBalance = type === "income" ? amount : -amount;
 
         // ── Multi-currency conversion ──
-        const currencyOrig = cuenta?.currency || workspace.baseCurrency;
+        const currencyOrig = currencyCode || cuenta?.currency || workspace.baseCurrency;
+        if (cuenta && cuenta.currency !== currencyOrig) {
+            finalAccountId = null;
+            cuenta = null;
+        }
         const { converted: amountBase, fxRateId } = await convertAndSave(
             amount, currencyOrig, workspace.baseCurrency
         );

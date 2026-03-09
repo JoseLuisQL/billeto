@@ -178,6 +178,7 @@ model Category {
 /// Transacción financiera (gasto, ingreso o transferencia)
 model Transaction {
   id                    String             @id @default(cuid())
+  displayId             Int                @unique @default(autoincrement()) @map("display_id")
   workspaceId           String             @map("workspace_id")
   accountId             String?            @map("account_id")
   categoryId            String?            @map("category_id")

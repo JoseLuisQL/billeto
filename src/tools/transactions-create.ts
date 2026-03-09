@@ -43,20 +43,13 @@ export default async function transactionsCreate(
     }
 
     // Obtener cuenta
-    let accountId = args.account_id;
-    if (!accountId) {
-        const defaultAccount = await prisma.account.findFirst({
-            where: { workspaceId, deletedAt: null },
-            orderBy: { createdAt: "asc" },
-        });
-        if (!defaultAccount) return "❌ No hay cuentas creadas. Creá una cuenta primero.";
-        accountId = defaultAccount.id;
-    }
-
-    const cuenta = await prisma.account.findFirst({
-        where: { id: accountId, workspaceId, deletedAt: null },
-    });
-    if (!cuenta) return "❌ Cuenta no encontrada.";
+    const accountId = args.account_id;
+    const cuenta = accountId
+        ? await prisma.account.findFirst({
+            where: { id: accountId, workspaceId, deletedAt: null },
+        })
+        : null;
+    if (accountId && !cuenta) return "❌ Cuenta no encontrada.";
 
     let categoryId = args.category_id || null;
     if (categoryId) {
@@ -99,10 +92,10 @@ export default async function transactionsCreate(
         const transaccion = await db.transaction.create({
             data: {
                 workspaceId,
-                accountId: accountId!,
+                accountId: accountId || undefined,
                 categoryId,
                 amountOriginal: args.amount,
-                currencyOriginal: cuenta.currency,
+                currencyOriginal: cuenta?.currency || "PEN",
                 amountBase: args.amount,
                 baseCurrency: "PEN",
                 description: description.trim(),
@@ -113,13 +106,15 @@ export default async function transactionsCreate(
             },
         });
 
-        const accountUpdated = await db.account.updateMany({
-            where: { id: accountId!, workspaceId, deletedAt: null },
-            data: { currentBalance: { increment: cambioBalance } },
-        });
+        if (accountId) {
+            const accountUpdated = await db.account.updateMany({
+                where: { id: accountId, workspaceId, deletedAt: null },
+                data: { currentBalance: { increment: cambioBalance } },
+            });
 
-        if (accountUpdated.count === 0) {
-            throw new Error("Cuenta no encontrada o sin permisos");
+            if (accountUpdated.count === 0) {
+                throw new Error("Cuenta no encontrada o sin permisos");
+            }
         }
 
         // Goal contributions from rules
@@ -186,5 +181,6 @@ export default async function transactionsCreate(
     const rulesInfo = ruleResult.matchedRuleIds.length > 0
         ? ` (${ruleResult.matchedRuleIds.length} regla(s) aplicada(s))`
         : "";
-    return `${emoji} Transacción creada: ${description} — S/ ${args.amount.toFixed(2)} (${args.type === "income" ? "ingreso" : "gasto"}) en cuenta "${cuenta.name}"${rulesInfo}. ID: ${tx.id}`;
+    const accountLabel = cuenta?.name ? ` en cuenta "${cuenta.name}"` : " sin cuenta específica";
+    return `${emoji} Transacción creada: ${description} — S/ ${args.amount.toFixed(2)} (${args.type === "income" ? "ingreso" : "gasto"})${accountLabel}${rulesInfo}. ID: ${tx.id}`;
 }

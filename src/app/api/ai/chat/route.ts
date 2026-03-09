@@ -30,6 +30,13 @@ import {
   handleAssistantDocumentUpload,
   handlePendingAssistantDocumentReply,
 } from "@/lib/assistant-documents";
+import type {
+  AssistantDataParts,
+  ChatSuggestion,
+  DocumentReviewCard,
+  AssistantMessageMetadata,
+  TransactionSummaryCard,
+} from "@/types/assistant-chat";
 
 type ToolErrorResult = {
   success: false;
@@ -41,20 +48,7 @@ type ToolErrorResult = {
 };
 
 type ToolCatchError = Error & { message: string };
-type TransactionSummaryCard = {
-  title: string;
-  id: string;
-  amount: string;
-  description: string;
-  category: string;
-  account: string;
-  date: string;
-  transactionType: string;
-};
-type AssistantDataParts = {
-  transaction_summary: TransactionSummaryCard;
-};
-type AssistantUIMessage = UIMessage<unknown, AssistantDataParts>;
+type AssistantUIMessage = UIMessage<AssistantMessageMetadata, AssistantDataParts>;
 
 const TOOL_TIMEOUT_MS = 12_000;
 const MAX_TOOL_REPEAT = 2;
@@ -98,10 +92,12 @@ function classifyUserIntent(input: string) {
   const text = input.toLowerCase().trim();
   const simpleGreeting = /^(hola|holi|buenas|buen día|buenas tardes|buenas noches|hello|hi)\b[!.?\s]*$/i.test(text);
   const supportIntent = /(soporte|ayuda técnica|contacto|asesor|humano|atención|atencion al cliente)/i.test(text);
+  const capabilityIntent = /(que puedes hacer|qué puedes hacer|que haces|qué haces|como puedes ayudar|cómo puedes ayudar|ayudame con|ayúdame con)/i.test(text);
 
   return {
     simpleGreeting,
     supportIntent,
+    capabilityIntent,
   };
 }
 
@@ -201,6 +197,15 @@ function formatDateForWorkspace(date: Date, timezone: string) {
   }).format(date);
 }
 
+async function resolveTransactionDisplayId(transactionId: string) {
+  const transaction = await prisma.transaction.findFirst({
+    where: { id: transactionId },
+    select: { displayId: true },
+  });
+
+  return transaction?.displayId;
+}
+
 function createAssistantTextResponse(text: string, headers?: HeadersInit) {
   const id = crypto.randomUUID();
 
@@ -216,15 +221,46 @@ function createAssistantTextResponse(text: string, headers?: HeadersInit) {
   });
 }
 
-function createTransactionSummaryResponse(summaryCard: TransactionSummaryCard, headers?: HeadersInit) {
+function createStructuredAssistantResponse(payload: {
+  text?: string;
+  summaryCard?: TransactionSummaryCard;
+  reviewCard?: DocumentReviewCard;
+  suggestions?: ChatSuggestion[];
+}, headers?: HeadersInit) {
+  const textId = crypto.randomUUID();
+
   return createUIMessageStreamResponse({
     headers,
     stream: createUIMessageStream<AssistantUIMessage>({
       execute: async ({ writer }) => {
-        writer.write({
-          type: "data-transaction_summary",
-          data: summaryCard,
-        });
+        if (payload.text?.trim()) {
+          writer.write({ type: "text-start", id: textId });
+          writer.write({ type: "text-delta", id: textId, delta: payload.text });
+          writer.write({ type: "text-end", id: textId });
+        }
+
+        if (payload.reviewCard) {
+          writer.write({
+            type: "data-document_review",
+            data: payload.reviewCard,
+          });
+        }
+
+        if (payload.summaryCard) {
+          writer.write({
+            type: "data-transaction_summary",
+            data: payload.summaryCard,
+          });
+        }
+
+        if (payload.suggestions?.length) {
+          writer.write({
+            type: "data-chat_suggestions",
+            data: {
+              items: payload.suggestions,
+            },
+          });
+        }
       },
     }),
   });
@@ -258,6 +294,7 @@ export async function POST(req: Request) {
     const lastUserMsg = [...(messages || [])]
       .reverse()
       .find((m) => m.role === "user");
+    const lastUserMetadata = (lastUserMsg?.metadata || {}) as AssistantMessageMetadata;
     let lastUserText = "Hola";
     if (lastUserMsg?.parts) {
       for (const p of lastUserMsg.parts) {
@@ -267,7 +304,12 @@ export async function POST(req: Request) {
         }
       }
     }
-    const { simpleGreeting, supportIntent } = classifyUserIntent(lastUserText);
+    const { simpleGreeting, supportIntent, capabilityIntent } = classifyUserIntent(lastUserText);
+    const preferredCurrencyCode = lastUserMetadata.preferredCurrencyCode?.trim().toUpperCase() || null;
+    const selectedCategoryName = lastUserMetadata.selectedCategory?.name?.trim() || null;
+    const selectedAccountName = lastUserMetadata.selectedAccount?.name?.trim() || null;
+    const selectedBudgetName = lastUserMetadata.selectedBudget?.name?.trim() || null;
+    const selectedTransactionDescription = lastUserMetadata.selectedTransaction?.description?.trim() || null;
 
     // --- Prompt Injection Defense ---
     const promptAnalysis = analyzePrompt(lastUserText);
@@ -325,15 +367,16 @@ export async function POST(req: Request) {
         baseCurrency: access.workspace.baseCurrency,
         timezone: workspaceTimezone,
         workspaceName: access.workspace.name,
+        preferredCurrencyCode,
+        selectedCategoryName,
+        selectedAccountName,
       });
 
-      if (documentResult.summaryCard) {
-        return createTransactionSummaryResponse(documentResult.summaryCard, {
-          "X-Billeto-Document-Flow": "1",
-        });
-      }
-
-      return createAssistantTextResponse(documentResult.message || "No pude procesar el documento.", {
+      return createStructuredAssistantResponse({
+        text: documentResult.message,
+        summaryCard: documentResult.summaryCard,
+        reviewCard: documentResult.reviewCard,
+      }, {
         "X-Billeto-Document-Flow": "1",
       });
     }
@@ -344,17 +387,31 @@ export async function POST(req: Request) {
       workspaceId,
       timezone: workspaceTimezone,
       baseCurrency: access.workspace.baseCurrency,
+      preferredCurrencyCode,
+      selectedCategoryName,
+      selectedAccountName,
     });
 
     if (pendingDocumentReply) {
-      if (pendingDocumentReply.summaryCard) {
-        return createTransactionSummaryResponse(pendingDocumentReply.summaryCard, {
-          "X-Billeto-Document-Flow": "1",
-        });
-      }
-
-      return createAssistantTextResponse(pendingDocumentReply.message || "No pude continuar con el comprobante.", {
+      return createStructuredAssistantResponse({
+        text: pendingDocumentReply.message,
+        summaryCard: pendingDocumentReply.summaryCard,
+        reviewCard: pendingDocumentReply.reviewCard,
+      }, {
         "X-Billeto-Document-Flow": "1",
+      });
+    }
+
+    if (simpleGreeting || capabilityIntent) {
+      return createStructuredAssistantResponse({
+        text: simpleGreeting
+          ? "Puedo ayudarte a registrar movimientos, revisar balances y analizar tus transacciones."
+          : "Puedo registrar gastos o ingresos, consultar balances, mostrar movimientos y resumir tus finanzas.",
+        suggestions: [
+          { label: "Registrar gasto", prompt: "Registra un gasto de 30 soles en almuerzo", tone: "primary" },
+          { label: "Ver balance", prompt: "¿Cuál es mi balance actual?" },
+          { label: "Últimos movimientos", prompt: "Muéstrame mis últimos movimientos" },
+        ],
       });
     }
 
@@ -388,7 +445,9 @@ Fecha: ${currentDate}. Moneda: ${access.workspace.baseCurrency}. Usuario: ${sess
 
 Estilo de respuesta:
 - Profesional, conciso, sin emojis innecesarios.
-- Usa viñetas cuando sea útil (2-4 líneas max).
+- No uses Markdown visible ni caracteres de formato como asteriscos, dobles asteriscos, almohadillas, backticks o listas crudas.
+- Si necesitas listar opciones, escríbelas en texto limpio y corto.
+- Mantén cada respuesta en 1 a 4 líneas salvo que una tool renderice una tarjeta.
 
 Categorías disponibles para GASTOS: ${expenseCategories.join(", ")}.
 Categorías disponibles para INGRESOS: ${incomeCategories.join(", ")}.
@@ -413,6 +472,16 @@ Reglas para registrar gastos/ingresos:
 4) Si no se menciona cuenta, NO preguntes. El sistema registrará sin cuenta.
 5) SOLO pregunta si falta el MONTO (dato realmente crítico). Descripción se puede inferir del contexto.
 6) Después de registrar una transacción exitosamente, NO escribas texto adicional. La tarjeta de confirmación ya muestra toda la información al usuario. Solo responde con texto si hubo un error o necesitas aclarar algo.
+
+Preferencias activas del compositor:
+- Categoría preseleccionada: ${selectedCategoryName || "ninguna"}.
+- Cuenta preseleccionada: ${selectedAccountName || "ninguna"}.
+- Moneda preseleccionada: ${preferredCurrencyCode || "ninguna"}.
+- Presupuesto seleccionado: ${selectedBudgetName || "ninguno"}.
+- Transacción referenciada: ${selectedTransactionDescription || "ninguna"}.
+- Si hay categoría preseleccionada, úsala por defecto salvo que el usuario indique otra.
+- Si hay cuenta preseleccionada, úsala por defecto salvo que el usuario indique otra.
+- Si hay moneda preseleccionada, úsala por defecto salvo que el usuario indique otra.
 
 Reglas generales:
 - Si el usuario solo saluda, responde con micro-guía útil (3 viñetas): registrar gasto, ver balance, ver últimos movimientos.
@@ -440,6 +509,7 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
             type: z.enum(["income", "expense"]).default("expense"),
             category_name: z.string().optional().describe("Nombre de categoría (ej: Comida, Transporte)"),
             account_name: z.string().optional().describe("Nombre de cuenta (ej: Efectivo, BCP)"),
+            currency_code: z.string().optional().describe("Código de moneda ISO o código interno (ej: PEN, USD)"),
             category_id: z.string().optional().describe("ID de categoría (compatibilidad interna)"),
             account_id: z.string().optional().describe("ID de cuenta (compatibilidad interna)"),
             date: z.string().optional().describe("Fecha ISO-8601 (YYYY-MM-DD)"),
@@ -462,11 +532,13 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   });
 
                   if (existing) {
+                    const visibleId = existing.displayId ?? await resolveTransactionDisplayId(existing.id);
                     return {
                       success: true,
                       message: `Transacción ya registrada previamente (${args.request_id}).`,
                       transaction: {
                         id: existing.id,
+                        displayId: visibleId,
                         description: existing.description,
                         amount: existing.amountBase,
                         accountName: existing.account?.name || "Sin cuenta específica",
@@ -491,23 +563,15 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   }
                 }
 
-                if (!finalAccountId && args.account_name?.trim() && accounts.length > 0) {
-                  const resolvedAccount = resolveAccountByName(args.account_name, accounts);
+                const requestedAccountName = args.account_name?.trim() || selectedAccountName || undefined;
+                if (!finalAccountId && requestedAccountName && accounts.length > 0) {
+                  const resolvedAccount = resolveAccountByName(requestedAccountName, accounts);
                   if (resolvedAccount && resolvedAccount.confidence >= 0.75) {
                     finalAccountId = resolvedAccount.id;
                   }
                 }
 
-                if (!finalAccountId && accounts.length > 0) {
-                  const cashAccount = accounts.find(
-                    (a) =>
-                      a.normalizedName === "efectivo" ||
-                      a.name.toLowerCase().includes("efectivo") ||
-                      a.name.toLowerCase().includes("cash")
-                  );
-
-                  finalAccountId = cashAccount ? cashAccount.id : accounts[0].id;
-                }
+                const selectedCurrencyCode = args.currency_code?.trim().toUpperCase() || preferredCurrencyCode || null;
 
                 const amountNum = Number(args.amount);
                 const increment = args.type === "income" ? amountNum : -amountNum;
@@ -520,14 +584,15 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   }
                 }
 
-                if (!finalCategoryId && args.category_name?.trim()) {
-                  const resolvedCategory = resolveCategoryByName(args.category_name, visibleCategories);
+                const requestedCategoryName = args.category_name?.trim() || selectedCategoryName || undefined;
+                if (!finalCategoryId && requestedCategoryName) {
+                  const resolvedCategory = resolveCategoryByName(requestedCategoryName, visibleCategories);
                   if (!resolvedCategory || resolvedCategory.confidence < 0.75) {
                     return {
                       success: false,
                       needs_confirmation: true,
                       field: "category_name",
-                      message: `No pude identificar con precisión la categoría "${args.category_name}". ¿Cuál categoría deseas usar?`,
+                      message: `No pude identificar con precisión la categoría "${requestedCategoryName}". ¿Cuál categoría deseas usar?`,
                       options: visibleCategories.slice(0, 8).map((c) => c.name),
                     };
                   }
@@ -569,8 +634,13 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   };
                 }
 
-                const finalAccount = finalAccountId ? accounts.find(a => a.id === finalAccountId) : null;
-                const accountCurrency = finalAccount?.currency || access.workspace.baseCurrency;
+                let finalAccount = finalAccountId ? accounts.find(a => a.id === finalAccountId) : null;
+                let accountCurrency = selectedCurrencyCode || finalAccount?.currency || access.workspace.baseCurrency;
+                if (finalAccount && selectedCurrencyCode && finalAccount.currency !== selectedCurrencyCode) {
+                  finalAccountId = null;
+                  finalAccount = null;
+                }
+                accountCurrency = selectedCurrencyCode || finalAccount?.currency || access.workspace.baseCurrency;
 
                 // ── Multi-currency conversion ──
                 const { converted: chatAmountBase, fxRateId: chatFxId } = await convertAndSave(
@@ -607,6 +677,11 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     include: { category: true, account: true },
                   });
 
+                  const persistedTx = await db.transaction.findFirst({
+                    where: { id: transaccion.id, workspaceId },
+                    include: { category: true, account: true },
+                  });
+
                   // Goal contributions from rules
                   if (ruleRes.goalContributions.length > 0) {
                     for (const gc of ruleRes.goalContributions) {
@@ -620,21 +695,21 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
 
                       if (contributionAmount > 0) {
                         const goal = await db.goal.findFirst({
-                          where: { id: gc.goalId, workspaceId },
-                          select: { id: true, currency: true, currentAmount: true, targetAmount: true, status: true },
-                        });
+                            where: { id: gc.goalId, workspaceId },
+                            select: { id: true, currency: true, currentAmount: true, targetAmount: true, status: true },
+                          });
 
-                        if (goal) {
-                          await db.goalContribution.create({
-                            data: {
-                              workspaceId,
-                              goalId: gc.goalId,
-                              transactionId: transaccion.id,
-                              amount: contributionAmount,
-                              currency: goal.currency,
-                              amountBase: contributionAmount,
-                              source: "rule",
-                              note: `Regla automática: ${args.description}`,
+                          if (goal) {
+                            await db.goalContribution.create({
+                              data: {
+                                workspaceId,
+                                goalId: gc.goalId,
+                                transactionId: persistedTx?.id || transaccion.id,
+                                amount: contributionAmount,
+                                currency: goal.currency,
+                                amountBase: contributionAmount,
+                                source: "rule",
+                                note: `Regla automática: ${args.description}`,
                             },
                           });
 
@@ -650,16 +725,17 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                     }
                   }
 
-                  return transaccion;
+                  return persistedTx || transaccion;
                 });
 
-                const selectedAccount = finalAccount;
+                const visibleId = tx.displayId ?? await resolveTransactionDisplayId(tx.id);
 
                 return {
                   success: true,
                   message: "Transaccion registrada",
                   transaction: {
                     id: tx.id,
+                    displayId: visibleId,
                     description: tx.description,
                     amount: tx.amountBase,
                     currency: access.workspace.baseCurrency,
@@ -670,18 +746,14 @@ ${promptAnalysis.riskLevel === "suspicious" ? SUSPICIOUS_REINFORCEMENT : ""}
                   },
                   summaryCard: {
                     title: "Transacción Registrada",
-                    id: tx.id,
+                    id: visibleId ? String(visibleId) : undefined,
+                    displayId: visibleId ? String(visibleId) : undefined,
                     amount: `${Number(tx.amountOriginal).toFixed(2)} ${finalAccount?.currency || access.workspace.baseCurrency}${finalAccount?.currency && finalAccount.currency !== access.workspace.baseCurrency ? ` (${Number(tx.amountBase).toFixed(2)} ${access.workspace.baseCurrency})` : ""}`,
                     description: tx.description,
                     category: tx.category?.name || "Otros",
                     account: tx.account?.name || "Sin cuenta específica",
                     date: formatDateForWorkspace(tx.date, workspaceTimezone),
                     transactionType: tx.type === "income" ? "Ingreso" : "Gasto",
-                    accountDecision: finalAccountId
-                      ? (args.account_name?.trim()
-                        ? `Cuenta interpretada: ${selectedAccount?.name || tx.account?.name}`
-                        : `Cuenta por defecto: ${selectedAccount?.name || tx.account?.name}`)
-                      : "Sin cuenta específica",
                   },
                 };
               })(), TOOL_TIMEOUT_MS, "Timeout al crear la transacción");

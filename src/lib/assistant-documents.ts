@@ -16,6 +16,11 @@ import {
   isSupportedAssistantDocumentMimeType,
 } from "@/lib/assistant-documents-config";
 import { normalizeCategoryName } from "@/lib/categories-defaults";
+import type {
+  ChatSuggestion,
+  DocumentReviewCard,
+  TransactionSummaryCard,
+} from "@/types/assistant-chat";
 
 type DocumentDraft = {
   documentKind: "receipt" | "invoice" | "payment_voucher" | "non_transaction";
@@ -37,17 +42,6 @@ type DocumentDraft = {
     quantity: number | null;
     amount: number | null;
   }>;
-};
-
-type TransactionSummaryCard = {
-  title: string;
-  id: string;
-  amount: string;
-  description: string;
-  category: string;
-  account: string;
-  date: string;
-  transactionType: string;
 };
 
 type DocumentConfig = {
@@ -72,12 +66,16 @@ type HandleUploadParams = {
   baseCurrency: string;
   timezone: string;
   workspaceName: string;
+  preferredCurrencyCode?: string | null;
+  selectedCategoryName?: string | null;
+  selectedAccountName?: string | null;
 };
 
 type DocumentFlowResult = {
   handled: true;
   message?: string;
   summaryCard?: TransactionSummaryCard;
+  reviewCard?: DocumentReviewCard;
 };
 
 const DEFAULT_DOCUMENT_PROMPT = `Eres el extractor documental de Billeto.
@@ -633,28 +631,51 @@ async function createAuditLog(params: {
   });
 }
 
-function buildReviewMessage(params: {
+function buildReviewCard(params: {
   title: string;
   ingestionId: string;
   draft: DocumentDraft;
   baseCurrency: string;
   timezone: string;
   duplicateWarning?: string;
-}) {
-  return [
-    params.title,
-    "",
-    `Archivo: ${params.ingestionId.slice(-6)}`,
-    `Tipo documental: ${params.draft.documentKind}`,
-    `Comercio: ${params.draft.merchantName || "No detectado"}`,
-    `Monto: ${formatAmount(params.draft.totalAmount, params.draft.currency, params.baseCurrency)}`,
-    `Fecha: ${buildPrettyDate(params.draft.issueDate, params.timezone)}`,
-    `Descripcion sugerida: ${buildDescription(params.draft)}`,
-    params.draft.suggestedCategoryName ? `Categoria sugerida: ${params.draft.suggestedCategoryName}` : "Categoria sugerida: pendiente",
-    params.duplicateWarning || `Confianza: ${(params.draft.confidence * 100).toFixed(0)}%`,
-    "",
-    "Responde con `confirmar` para registrar, `cancelar` para descartar o corrige con frases como `monto 32.50`, `fecha 2026-03-08`, `descripcion Almuerzo cliente`, `tipo gasto`.",
-  ].join("\n");
+}): DocumentReviewCard {
+  const suggestions: ChatSuggestion[] = [
+    { label: "Confirmar", prompt: "confirmar", tone: "primary" },
+    { label: "Cancelar", prompt: "cancelar", tone: "danger" },
+  ];
+
+  return {
+    title: params.duplicateWarning ? "Comprobante similar detectado" : "Revisión necesaria",
+    tone: params.duplicateWarning ? "warning" : "default",
+    subtitle: params.duplicateWarning
+      ? "Ya existe un registro reciente con datos similares."
+      : "Confirma o corrige antes de guardar.",
+    fields: [
+      {
+        label: "Monto",
+        value: formatAmount(params.draft.totalAmount, params.draft.currency, params.baseCurrency),
+        priority: "primary",
+      },
+      {
+        label: "Descripcion",
+        value: buildDescription(params.draft),
+        priority: "primary",
+      },
+      {
+        label: "Categoria",
+        value: params.draft.suggestedCategoryName || "Pendiente",
+        priority: "primary",
+      },
+      { label: "Comercio", value: params.draft.merchantName || "No detectado", priority: "secondary" },
+      { label: "Fecha", value: buildPrettyDate(params.draft.issueDate, params.timezone), priority: "secondary" },
+      {
+        label: params.duplicateWarning ? "Duplicado" : "Confianza",
+        value: params.duplicateWarning ? "Posible duplicado" : `${(params.draft.confidence * 100).toFixed(0)}%`,
+        priority: "secondary",
+      },
+    ],
+    suggestions,
+  };
 }
 
 async function resolveCategoryId(
@@ -686,6 +707,8 @@ async function resolveCategoryId(
 }
 
 async function resolveAccountId(workspaceId: string, accountName: string | null | undefined) {
+  if (!accountName) return null;
+
   const accounts = await prisma.account.findMany({
     where: { workspaceId, deletedAt: null },
     orderBy: { name: "asc" },
@@ -704,14 +727,7 @@ async function resolveAccountId(workspaceId: string, accountName: string | null 
     if (partial) return partial.id;
   }
 
-  const cashAccount = accounts.find(
-    (item) =>
-      item.normalizedName === "efectivo" ||
-      item.name.toLowerCase().includes("efectivo") ||
-      item.name.toLowerCase().includes("cash")
-  );
-
-  return cashAccount?.id || accounts[0]?.id || null;
+  return null;
 }
 
 async function registerIngestionTransaction(params: {
@@ -720,6 +736,9 @@ async function registerIngestionTransaction(params: {
   userId: string;
   timezone: string;
   baseCurrency: string;
+  preferredCurrencyCode?: string | null;
+  selectedCategoryName?: string | null;
+  selectedAccountName?: string | null;
 }) {
   const ingestion = await prisma.documentIngestion.findFirst({
     where: { id: params.ingestionId, workspaceId: params.workspaceId },
@@ -752,9 +771,16 @@ async function registerIngestionTransaction(params: {
     ingestion.fileName
   );
   const suggestedCategoryName =
-    typeof extracted.suggestedCategoryName === "string" ? extracted.suggestedCategoryName : ingestion.suggestedCategoryName;
+    params.selectedCategoryName ||
+    (typeof extracted.suggestedCategoryName === "string" ? extracted.suggestedCategoryName : ingestion.suggestedCategoryName);
   const suggestedAccountName =
-    typeof extracted.suggestedAccountName === "string" ? extracted.suggestedAccountName : ingestion.suggestedAccountName;
+    params.selectedAccountName ||
+    (typeof extracted.suggestedAccountName === "string" ? extracted.suggestedAccountName : ingestion.suggestedAccountName);
+  const preferredCurrencyCode =
+    params.preferredCurrencyCode ||
+    (typeof extracted.preferredCurrencyCode === "string" ? extracted.preferredCurrencyCode : null) ||
+    normalizeOptionalString(ingestion.currency) ||
+    params.baseCurrency;
 
   if (!Number.isFinite(amount) || amount <= 0 || !description) {
     await prisma.documentIngestion.update({
@@ -779,6 +805,7 @@ async function registerIngestionTransaction(params: {
   formData.set("date", transactionDate.toISOString());
   formData.set("source", "ai_document");
   formData.set("requestId", `doc:${ingestion.id}`);
+  formData.set("currencyCode", preferredCurrencyCode);
 
   const categoryId = await resolveCategoryId(params.workspaceId, suggestedCategoryName, description, type);
   const accountId = await resolveAccountId(params.workspaceId, suggestedAccountName);
@@ -847,8 +874,9 @@ async function registerIngestionTransaction(params: {
     transactionId: result.transaccion.id,
     summaryCard: {
       title: "Transacción Registrada",
-      id: result.transaccion.id,
-      amount: `${amount.toFixed(2)} ${savedTransaction?.account?.currency || ingestion.currency || params.baseCurrency}`,
+      id: String(savedTransaction?.displayId || result.transaccion.displayId),
+      displayId: String(savedTransaction?.displayId || result.transaccion.displayId),
+      amount: `${amount.toFixed(2)} ${preferredCurrencyCode || savedTransaction?.account?.currency || ingestion.currency || params.baseCurrency}`,
       description,
       category: savedTransaction?.category?.name || "Otros",
       account: savedTransaction?.account?.name || "Sin cuenta específica",
@@ -959,6 +987,9 @@ export async function handleAssistantDocumentUpload(params: HandleUploadParams):
       providerSlug,
       modelId,
       fileName: safeFilename,
+      preferredCurrencyCode: params.preferredCurrencyCode,
+      selectedCategoryName: params.selectedCategoryName,
+      selectedAccountName: params.selectedAccountName,
     });
 
     await prisma.documentIngestion.update({
@@ -1028,7 +1059,7 @@ export async function handleAssistantDocumentUpload(params: HandleUploadParams):
 
       return {
         handled: true,
-        message: buildReviewMessage({
+        reviewCard: buildReviewCard({
           title: "Esta transaccion se cargo hace poco con los mismos datos. Quieres volver a cargarla?",
           ingestionId: ingestion.id,
           draft,
@@ -1051,7 +1082,7 @@ export async function handleAssistantDocumentUpload(params: HandleUploadParams):
 
       return {
         handled: true,
-        message: buildReviewMessage({
+        reviewCard: buildReviewCard({
           title: "Pude extraer un borrador, pero necesito tu confirmacion antes de registrarlo.",
           ingestionId: ingestion.id,
           draft,
@@ -1067,6 +1098,9 @@ export async function handleAssistantDocumentUpload(params: HandleUploadParams):
       userId: params.userId,
       timezone: params.timezone,
       baseCurrency: params.baseCurrency,
+      preferredCurrencyCode: params.preferredCurrencyCode,
+      selectedCategoryName: params.selectedCategoryName,
+      selectedAccountName: params.selectedAccountName,
     });
 
     return {
@@ -1099,6 +1133,9 @@ export async function handlePendingAssistantDocumentReply(params: {
   workspaceId: string;
   timezone: string;
   baseCurrency: string;
+  preferredCurrencyCode?: string | null;
+  selectedCategoryName?: string | null;
+  selectedAccountName?: string | null;
 }): Promise<DocumentFlowResult | null> {
   const pending = await prisma.documentIngestion.findFirst({
     where: {
@@ -1190,7 +1227,7 @@ export async function handlePendingAssistantDocumentReply(params: {
 
     return {
       handled: true,
-      message: buildReviewMessage({
+      reviewCard: buildReviewCard({
         title: "Actualicé el borrador con tus correcciones.",
         ingestionId: pending.id,
         draft: nextDraft,
@@ -1207,6 +1244,9 @@ export async function handlePendingAssistantDocumentReply(params: {
       userId: params.userId,
       timezone: params.timezone,
       baseCurrency: params.baseCurrency,
+      preferredCurrencyCode: params.preferredCurrencyCode,
+      selectedCategoryName: params.selectedCategoryName,
+      selectedAccountName: params.selectedAccountName,
     });
 
     return {
@@ -1216,11 +1256,5 @@ export async function handlePendingAssistantDocumentReply(params: {
     };
   }
 
-  return {
-    handled: true,
-    message:
-      pending.status === "duplicate_pending"
-        ? "Encontré un comprobante pendiente marcado como duplicado. Responde `confirmar` para registrarlo otra vez o `cancelar` para descartarlo."
-        : "Tengo un comprobante pendiente de revision. Responde `confirmar`, `cancelar` o corrige con frases como `monto 20.50` o `fecha 2026-03-08`.",
-  };
+  return null;
 }
