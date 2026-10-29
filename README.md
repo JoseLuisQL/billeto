@@ -285,4 +285,4 @@ User Input
 
 ## License
 
-Private. All rights reserved.
+Distributed under the **MIT License**. See [`LICENSE`](./LICENSE) for more information.
